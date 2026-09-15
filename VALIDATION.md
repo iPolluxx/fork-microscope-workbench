@@ -9,7 +9,7 @@ From the repository root:
 ```bash
 ./scripts/setup.sh cpu
 .venv/bin/python -m pytest -q
-node --test test_*.mjs
+node --test tests/test_*.mjs
 .venv/bin/fork-microscope verify-upstream
 .venv/bin/python scripts/verify_math.py
 .venv/bin/python scripts/build_dashboard.py
@@ -18,11 +18,24 @@ node --test test_*.mjs
 
 These checks do not require private run archives or a GPU. The build commands produce local files only; they do not deploy a service. Generated audits and build artifacts are excluded from Git.
 
+## Package-layout verification — 2026-09-14
+
+The fresh public package layout passed **281 Python tests (3 skipped)** and
+**31 JavaScript tests** locally. CLI discovery, the installed package outside the
+checkout, both static build paths and background-worker start/stop were checked.
+These checks used the existing pinned CPU dependencies through a local verification
+environment; they were not a new GPU run or a clean dependency installation.
+GitHub's separate CPU setup/build workflow subsequently passed for the initial
+public commits `7a58967` and `a6e703d`.
+
+No new model-quality, runtime-cost or lens-fit claims follow from the file-layout
+refactor. Earlier numerical and model-specific validation remains historical.
+
 ## Checked release candidate
 
 On 2026-09-10, a fresh CPU setup on Linux x86-64 (Python 3.13.13, PyTorch 2.11.0+cpu, Transformers 5.16.1) passed 155 application Python tests, 10 JavaScript tests and 76 upstream tests. All 203 released-store checks and the standalone numerical audit passed. Both static dashboard build paths completed successfully. These are local checks, not a deployed-service acceptance test.
 
-## Current main validation — 2026-09-12
+## Historical validation — 2026-09-12
 
 The implementation at `8e4176f` passed **214 Python tests and 17 JavaScript checks**.
 Both dashboard build paths succeeded. Cloud Run revision `fork-microscope-00006-r7d`
@@ -41,7 +54,7 @@ See [lens validation and limits](docs/JACOBIAN-LENS.md).
 
 ## Coverage
 
-The unreleased NNsight/patching integration was checked on 2026-09-13 with **273
+The NNsight/patching integration was checked before release on 2026-09-13 with **273
 application tests passing and 3 optional-runtime tests skipped** in the standard
 environment, plus **23 JavaScript checks**. The three skipped tests were separately
 executed using pinned NNsight 0.7.0 in an isolated dependency environment; the
@@ -61,7 +74,7 @@ matches the four checked live-schema fits exactly.
 
 Application tests cover mixture collection and budgets, saved evidence, answer matching, completion gates, reconstruction, exact-prefix replay, refinement endpoints, run-comparison eligibility, workspace storage, worker connection controls, model preflight and packaging. JavaScript tests cover grid math and graph-evidence handling. Synthetic refinement fixtures are separate from runnable model examples.
 
-The [numerical audit](docs/MATH-VALIDATION.md) checks 203 released stores, four bounded live-schema reconstruction cases against the pristine baseline, Gaussian/Dirichlet algebra and a small exhaustive PELT example. Upstream tests exercise the pinned implementation separately. The optional [grid benchmark](benchmarks/README.md) is not a full reproduction of the paper's evaluation or proof of cost savings.
+The [numerical audit](docs/MATH-VALIDATION.md) checks 203 released stores, four bounded live-schema reconstruction cases against the pristine baseline, Gaussian/Dirichlet algebra and a small exhaustive PELT example. Upstream tests exercise the pinned implementation separately. The historical grid comparison was a separate experiment and is not shipped with this application; it did not establish cost savings.
 
 ## Inference and deployment boundary
 
