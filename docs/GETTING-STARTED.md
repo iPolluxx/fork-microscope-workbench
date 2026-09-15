@@ -230,8 +230,11 @@ worker. **Import run** restores that file to another worker without resampling.
 
 ## Updating your installation
 
-Wait for the active job to finish, export any evidence you need, and stop the
-worker with Ctrl+C in its terminal. From your existing checkout:
+Wait for work to finish and export a complete investigation bundle. For a
+background worker run `fork-microscope machine stop --port 8768`; for foreground
+`serve` or `connect`, use Ctrl+C in its terminal. Neither action stops VM billing.
+
+For a checkout already using the current public history:
 
 ```bash
 git pull --ff-only
@@ -239,22 +242,26 @@ git submodule update --init --recursive
 uv pip install --python .venv/bin/python --no-deps --editable .
 uv pip install --python .venv/bin/python --no-deps -r requirements/lens.txt
 .venv/bin/fork-microscope doctor
-.venv/bin/fork-microscope connect \
+.venv/bin/fork-microscope machine start \
   --dashboard-origin https://fork-microscope-wzyjs4vwsq-uc.a.run.app
 ```
 
-The editable reinstall updates the CLI's module registration, including new worker
-modules. If the dependency lockfiles changed, run `./scripts/setup.sh cpu` or
-`./scripts/setup.sh cuda` before `doctor` instead of the two `uv pip install`
-commands above. A container-based worker needs an image rebuilt from the new
-checkout and a replacement container; preserve its evidence first.
+If dependency locks changed, run `./scripts/setup.sh cpu` or `cuda` before
+`doctor` instead of the two install commands. A container worker needs a rebuilt
+image and replacement container, with evidence exported first.
 
-Refresh the website and reconnect with the token printed by the restarted worker.
-If `FORK_WORKER_TOKEN` is set, the launcher reuses it; otherwise it generates a new
-one. Reload your model when needed. Saved files stay on the worker, but the loaded
-model, unsaved original response and temporary activation cache do not survive a
-restart. Export lens/investigation JSON separately: a normal run export does not
-include those artifacts. See [storage details](INTERPRETING-RESULTS.md#storage-and-deployment).
+**Migrating from the earlier repository history:** do not force-pull or merge
+unrelated histories. Keep the old checkout, export its investigation bundles and
+prompt sets, clone the current public repository into a new directory, run setup,
+and import the files. The application now lives in `src/fork_microscope/`;
+reinstalling the editable package updates its console entry point.
+
+Pair the browser again if needed. The `machine` launcher keeps its token in its
+private per-port state directory; it does not use `FORK_WORKER_TOKEN` to choose
+that token. The older `connect`/`serve` paths still support that environment variable.
+Loaded models, unsaved original responses and activation caches do not survive a
+restart. Single-run exports omit lens artifacts; use **Export investigation** for
+the related run family and saved readouts. See [storage details](INTERPRETING-RESULTS.md#storage-and-deployment).
 
 ## Need help?
 
@@ -281,7 +288,7 @@ reuse network-worker credentials merely to browse your local files.
 
 Authenticated connections are shared between open tabs of the same website,
 without storing tokens in localStorage. A different browser or website origin,
-or reopening after all tabs close, may need **Connect compute** again. The top
+or reopening after all tabs close, may need **Connect a machine** again. The top
 bar identifies the evidence source. An authentication error means reconnect; it
 does not mean the files disappeared. Network workers still require their token.
 

@@ -57,8 +57,11 @@ states. If the pair differs at response token 0, inspect the last prompt token f
 the shared pre-divergence baseline. After divergence, equal numeric positions do
 not guarantee equal meaning.
 
-**How it works** opens a four-step walkthrough. Advanced text interventions and raw
-activation capture live under **Test an edit or capture activation vectors** in step 4.
+**How it works** opens the introductory walkthrough. Explore uses Prompt, Scan,
+Compare paths and Look inside views, with the outcome map available throughout.
+Advanced text interventions and raw capture live under **Look inside → Test an edit
+or capture activation vectors**. When no readout exists, **Configure a readout at
+token N** opens settings without starting compute.
 
 Outcome pairs require distinct, uniquely recorded draw IDs at the same checkpoint,
 exact continuation token IDs, known completion, and different non-Other labels. The
@@ -82,7 +85,7 @@ unfiltered vocabulary ranks; punctuation, fragments and multilingual tokens are 
 
 The two Qwen files are the selections in the [pinned upstream walkthrough](https://github.com/anthropics/jacobian-lens/blob/581d398613e5602a5af361e1c34d3a92ea82ba8e/walkthrough.ipynb).
 We pin the Neuronpedia repository to `16a01f309fcec900fdcec3f4cd5b64f3d00e4d5a` and
-check exact file sizes and SHA-256 digests in `lens_integration.py`. Generic filenames
+check exact file sizes and SHA-256 digests in `src/fork_microscope/lens_integration.py`. Generic filenames
 and neighboring fit configs are not substituted for these specific artifacts.
 
 **For Qwen, the exact fitted model revision is not published.** We record the loaded model's

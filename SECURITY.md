@@ -20,3 +20,12 @@ Use one worker process per data directory. Back up completed evidence before ter
 Use GitHub's private vulnerability reporting if it is enabled for the repository. If unavailable, open a minimal issue asking the maintainer for a private contact channel, without posting credentials, exploit details or private data. Never include a live worker token in a public report.
 
 The project is a research beta. Automated tests and review do not constitute an independent security certification. Reports should describe the affected revision, deployment mode and a minimal sanitized reproduction.
+
+## Machine pairing
+
+`machine start` generates a private worker token and a single-use, ten-minute
+pairing code. The code is a credential: exchanging it grants worker access, not
+read-only viewing. Generating another code invalidates the prior unused code;
+it does not rotate the persistent token or revoke already paired clients.
+The optional temporary Cloudflare tunnel terminates TLS at Cloudflare. It is
+not an end-to-end private relay or a permanent connection identity.

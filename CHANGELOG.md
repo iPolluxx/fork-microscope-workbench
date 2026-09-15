@@ -1,6 +1,14 @@
 # Changelog
 
-## Updates on main — internal inspection and controlled patches
+## Current main — package layout and machine pairing
+
+- Python application in `src/fork_microscope/`; Python and JavaScript tests in `tests/`.
+- Background machine startup, expiring one-time pairing and optional temporary HTTPS.
+- Persistent outcome map, checkpoint context, contrasting-pair navigation and clearer compute status.
+- Shared configuration reference and separated interpretation/workflow guides.
+- Fresh public repository history: earlier checkouts migrate by new clone and evidence import, not force-pull.
+
+## Earlier implementation — updates on main — internal inspection and controlled patches
 
 - Optional, pinned NNsight capture on the existing model, with exact-token replay,
   temporary instrumentation, backend provenance and unchanged native defaults.

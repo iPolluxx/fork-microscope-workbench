@@ -7,7 +7,7 @@ bounded refinement, and an optional paired Jacobian lens inspection. The worker
 runs the model. A CLI, an agent, or the dashboard can start the same job. Closing
 the browser does not stop it. No cloud VM is provisioned or terminated by this API.
 
-See the [agent configuration reference](CONFIGURATION.md) for every field,
+See the [investigation configuration reference](CONFIGURATION.md) for every field,
 allowed values, effects, budget arithmetic, and manual-operation alternatives.
 
 ## Start with connected compute
@@ -30,6 +30,13 @@ Do not put tokens in JSON, command arguments, shared screenshots, or bundles.
 `FORK_WORKER_URL` defaults to `http://127.0.0.1:8767`. Remote HTTP is rejected;
 use HTTPS or an SSH tunnel. The client does not follow authentication redirects.
 
+For `machine start` on its default port, set `FORK_WORKER_URL` to
+`http://127.0.0.1:8768` (or its HTTPS address). On that machine, the private token
+file is `~/.local/state/fork-microscope/machine-8768/token`; load it into the
+`FORK_WORKER_TOKEN` environment variable without printing it. Browser pairing does
+not automatically configure your CLI shell. Substitute your port if customized.
+
+
 ```bash
 fork-microscope investigation start configs/investigation-example.json --request-id attendance-001
 fork-microscope investigation list
@@ -38,7 +45,7 @@ fork-microscope investigation cancel JOB_ID
 fork-microscope investigation export JOB_ID investigation.json
 ```
 
-A checkout also supports `python3 -m fork_microscope.fork_cli investigation ...`. Commands for
+An installed checkout also supports `.venv/bin/python -m fork_microscope.fork_cli investigation ...`. Commands for
 remote requests need no local model weights; the worker still needs its normal
 runtime dependencies. Replace JOB_ID with the returned 32-character ID.
 
@@ -47,7 +54,7 @@ the same job. Reusing it with different settings is rejected. Use a new ID for a
 intentional new experiment. One investigation owns the worker until it finishes;
 manual model jobs are rejected during that period.
 
-In the dashboard's Configure page, open **Run a complete investigation**, choose
+In the dashboard's Configure page, open **Automate a complete investigation · advanced**, choose
 the same configuration JSON, enter a request ID, review the summary and select
 **Start on connected compute**. The job controls show progress, cancellation,
 explicit resume, export, and an Explorer link. This first UI uses a configuration

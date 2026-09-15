@@ -18,7 +18,7 @@ Start with the task you want to do. You do not need to read every document.
 
 ## The shortest useful path
 
-**One prompt:** Connect compute → Configure model → Question and answer labels →
+**One prompt:** Connect a machine → Configure model → Question and answer labels →
 Generate and review → Scan → Explore. Expand advanced controls when your research
 question needs them. You can also configure multiple prompts in Workspace.
 

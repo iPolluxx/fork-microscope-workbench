@@ -30,7 +30,18 @@ The simplest installation remains:
 
 Open `http://127.0.0.1:8767`. It uses that local worker without a separate connection step.
 
-The easiest hosted connection is `.venv/bin/fork-microscope connect --dashboard-origin https://YOUR-DASHBOARD-DOMAIN`. It generates (or reuses) a token and prints the details. See [getting started](GETTING-STARTED.md).
+For the hosted website, start a background worker instead:
+
+```bash
+.venv/bin/fork-microscope machine start --dashboard-origin https://YOUR-DASHBOARD-DOMAIN
+```
+
+Paste its expiring `FM1.` code into **Connect a machine → Pair this machine**.
+Default port: **8768**. `FORK_DASHBOARD_ORIGIN` supplies a self-hosted default;
+an explicit flag overrides it. With neither, the public dashboard is the default.
+See [getting started](GETTING-STARTED.md) for service management and temporary HTTPS.
+
+### Advanced: existing workers
 
 To configure the same settings manually, generate a worker token and allow the **exact** dashboard origin:
 
@@ -39,13 +50,18 @@ export FORK_WORKER_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urls
 .venv/bin/fork-microscope serve --port 8767 --allow-origin https://YOUR-DASHBOARD-DOMAIN
 ```
 
-Enter `http://127.0.0.1:8767` and that worker token in **Connect compute** on the hosted page. The token belongs to this Fork Microscope worker; it is not a RunPod, GCP or Hugging Face API key. Display it locally when you need to copy it; do not put it into shared notebooks or screenshots.
+Enter `http://127.0.0.1:8767` and that worker token in **Connect a machine → Advanced: worker URL and access token** on the hosted page. The token belongs to this Fork Microscope worker; it is not a RunPod, GCP or Hugging Face API key. Display it locally when you need to copy it; do not put it into shared notebooks or screenshots.
 
 Hosted-to-local connections depend on browser local-network permissions. If the browser blocks this connection, open the local dashboard URL instead. The identical workflow is served by the worker.
 
 ## Connect a GPU VM with any provider
 
-Install the same application or launch its GPU container. Connect through either method:
+For a checkout installation with `cloudflared` available, use `machine start --share`
+with your dashboard origin. This creates a temporary HTTPS tunnel and a pairing
+code; it does not rent or terminate the VM. Cloudflare terminates the public TLS.
+The address can change on restart, requiring a new code. No permanent relay exists.
+
+For an existing worker or the GPU container, use either manual connection method:
 
 1. **SSH tunnel:** run the worker on loopback with your hosted origin allowed, then forward its port: `ssh -L 8767:127.0.0.1:8767 USER@YOUR-VM`. Enter the localhost URL and worker token in the dashboard. SSH authentication remains with your SSH client.
 2. **HTTPS endpoint:** put the worker behind a TLS reverse proxy. Start it with `--host 0.0.0.0 --allow-origin https://YOUR-DASHBOARD-DOMAIN` and `FORK_WORKER_TOKEN` set. Expose only the HTTPS proxy publicly; keep the plain HTTP worker port private. Enter the HTTPS origin and worker token. Do not use a raw public HTTP URL.
@@ -57,7 +73,7 @@ The container accepts `FORK_WORKER_HOST`, `FORK_DASHBOARD_ORIGIN`, and `FORK_WOR
 - The worker token grants access to that worker's model controls, filesystem model paths, jobs and saved evidence. Use a separate worker per person or trusted team. This is not tenant isolation inside one worker.
 - Allowed origins are explicit; wildcard access is refused. API requests require a bearer token when network/origin access is enabled or a worker token is explicitly set. CLI calls without an Origin still require the token.
 - The browser retains the selected worker URL and token in **tab session storage**, so page navigation keeps working. Disconnect removes them. They are not included in run or prompt-set exports.
-- Lens and text/activation investigations live in `investigations/` and must be exported separately from run evidence. The current GPU container does not link this directory into `/workspace`; see [container storage](../docker/README.md#persistent-or-disposable-storage).
+- Lens and text/activation investigations live in `investigations/` and are included in **Export investigation** when related to its runs. A single-run export omits them. The current GPU container does not link this directory into `/workspace`; see [container storage](../docker/README.md#persistent-or-disposable-storage).
 - Run records live in `live-runs/`; sets and batch snapshots live in `workspace-data/`. Both map into `/workspace/` in the GPU container. Use a persistent mount or export before terminating an ephemeral VM.
 - Prompt batches execute sequentially on one attached model. A model load or another batch cannot begin while a job runs. Stop acts on the selected job ID. Completed results survive cancellation; incomplete sampling is retained but not automatically resumed.
 - The dashboard has no central accounts or shared gallery. Switching workers switches the workspace being viewed. A hosted frontend operator controls the code that can access the token in that page; only connect from a dashboard host you trust.
@@ -70,7 +86,7 @@ The container accepts `FORK_WORKER_HOST`, `FORK_DASHBOARD_ORIGIN`, and `FORK_WOR
 4. Open a completed run in Explore. Inspect raw outcomes alongside the saved Goodfire reconstruction.
 5. Choose a candidate interval, or the entire trace, then **Reference preset**. Review its continuation budget before launching. The exact original trace is restored.
 6. Open Compare, select the exploratory and reference runs. Comparability checks precede any metrics. Reference measurements are finite samples, not ground truth.
-7. Optionally compare completed paths and inspect them with a compatible [Jacobian lens](JACOBIAN-LENS.md). Export evidence, prompt sets and separate investigation JSON before changing or terminating hardware.
+7. Optionally compare completed paths and inspect them with a compatible [Jacobian lens](JACOBIAN-LENS.md). Export the complete investigation bundle and any prompt sets before changing or terminating hardware. Separate artifact JSON remains available for individual inspections.
 
 A website deployment does not upgrade workers. Follow [Updating your installation](GETTING-STARTED.md#updating-your-installation), then refresh and reconnect.
 

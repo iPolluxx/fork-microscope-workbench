@@ -6,6 +6,9 @@ Fork Microscope turns checkpoint sampling into an inspectable workflow. Useful c
 
 Follow the [README](README.md) and use `./scripts/setup.sh cpu` for development without a GPU. Run one worker process per checkout/data directory. The frontend uses plain HTML, CSS and ES modules; no npm application install or frontend framework build is required.
 
+All Python modules listed below are in `src/fork_microscope/`; all test files are in
+`tests/`. Install editable before running the CLI outside the checkout.
+
 - `live_model.py`, `model_preflight.py`: native model adapter and eligibility checks.
 - `live_service.py`, `sampling.py`: job ownership, sampling, reconstruction and run records.
 - `replay_trace.py`, `refinement.py`, `run_comparison.py`: exact-trace replay and evidence comparison.

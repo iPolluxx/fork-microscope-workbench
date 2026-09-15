@@ -11,7 +11,7 @@ Python modules below live in `src/fork_microscope/`. All tests live in `tests/`.
 | Component | Responsibility |
 | --- | --- |
 | `public/fork-microscope/` | Static dashboard: connection setup, prompt workspace, scan configuration, graphs, continuation reader and run comparison. |
-| `microscope_server.py`, `worker_connection.py` | HTTP API, worker authentication and allowed browser origins. |
+| `microscope_server.py`, `worker_connection.py`, `machine_connection.py` | HTTP API, worker authentication, one-time pairing, background startup and allowed browser origins. |
 | `live_service.py`, `live_model.py` | Model lifecycle, base generation, sampling jobs, reconstruction and saved runs. |
 | `model_preflight.py` | Architecture/tokenizer checks and hardware information before loading. Compatibility checks do not guarantee sufficient memory. |
 | `sampling.py`, `outcome_readout.py` | Checkpoint mixture draws and versioned, inspectable answer classification. |
@@ -78,5 +78,18 @@ Workspace. Navigation remains usable without JavaScript.
 
 Edit `scripts/sync_navigation.py` for shared markup, then run
 `python3 scripts/sync_navigation.py`. Dashboard builds check that every page is
-in sync, including the legacy explorer, so one page cannot silently ship a
+in sync, including the released-data explorer, so one page cannot silently ship a
 different menu. Research panels keep their own layouts and controls.
+
+### Paths and package installation
+
+Python is a `src` package installed with `uv pip install --python .venv/bin/python --no-deps --editable .`. The console entry point is
+`fork_microscope.fork_cli:main`. Resource paths resolve to the checkout root, not
+the shell’s current directory. This remains a checkout-based application, not a
+standalone wheel containing UI and upstream resources.
+
+Each checkout has its own ignored runtime directories. A fresh checkout does not
+automatically inherit an older checkout’s library; use evidence bundle import.
+Machine service credentials live outside the checkout under the user’s private
+`~/.local/state/fork-microscope/machine-PORT/` directory. Stop an existing service
+before using the same port from another checkout.

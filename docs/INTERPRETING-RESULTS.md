@@ -71,7 +71,9 @@ prefixes; vector differences are not semantic explanations.
 
 For ranked vocabulary readouts beside these vectors, use the [Jacobian lens panel](JACOBIAN-LENS.md). It supports original prompt/response positions, saved draws and edit/control prefixes with a matching fitted lens.
 
-This version does **not** train probes, label hidden thoughts, or patch activations.
+This capture tool does **not** train probes or label hidden thoughts. The separate
+[activation patch panel](NNSIGHT-INTEGRATION.md) implements bounded donor/recipient
+replacement with fresh baseline and self-copy controls.
 A later probe requires independent problem-level train/test splits and meaningful
 label variation. Repeated continuations from the same prefix share one activation
 example; they are not independent feature rows. Causal activation tests require
