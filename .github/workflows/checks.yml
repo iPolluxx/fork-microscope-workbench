@@ -1,0 +1,30 @@
+name: CPU and dashboard checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.11.2'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: ./scripts/setup.sh cpu
+      - run: .venv/bin/python -m pytest -q
+      - run: node --test tests/test_*.mjs
+      - run: .venv/bin/fork-microscope verify-upstream
+      - run: .venv/bin/python scripts/verify_math.py
+      - run: python3 scripts/build_dashboard.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: static-dashboard
+          path: dist/fork-dashboard.zip
+          if-no-files-found: error

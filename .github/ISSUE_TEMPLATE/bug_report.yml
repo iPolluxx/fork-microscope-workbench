@@ -1,0 +1,25 @@
+name: Bug report
+description: Report a reproducible workflow or measurement problem.
+body:
+  - type: markdown
+    attributes:
+      value: Do not include worker tokens, provider keys, or private research data. See SECURITY.md for sensitive reports.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps and minimal sanitized example
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Commit, OS, model/revision and worker setup
+      description: Include relevant sampling settings and errors. Say whether this is the local or separately hosted dashboard.
+    validations:
+      required: true

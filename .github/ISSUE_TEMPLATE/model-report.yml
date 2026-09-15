@@ -1,0 +1,24 @@
+name: Model compatibility report
+description: Report a tested model/hardware combination or an attachment problem.
+title: "[Model]: "
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Model and environment
+      description: Model ID/revision or format (no private paths required), OS, GPU/VRAM, installation method, application commit.
+    validations:
+      required: true
+  - type: textarea
+    id: checked
+    attributes:
+      label: What did you verify?
+      description: Distinguish metadata inspection, loading, generation, completion parsing, sampling and replay. Include sanitized errors. Never include tokens or credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: expectation
+    attributes:
+      label: Expected and observed behavior
+    validations:
+      required: true

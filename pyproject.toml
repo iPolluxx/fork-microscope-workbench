@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools==78.1.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fork-microscope"
+version = "0.1.0b1"
+description = "A local model-sampling workbench built around Goodfire Forking Fast"
+requires-python = ">=3.13,<3.14"
+license = {file = "LICENSE"}
+readme = "README.md"
+dependencies = []
+
+[project.scripts]
+fork-microscope = "fork_microscope.fork_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "src"]

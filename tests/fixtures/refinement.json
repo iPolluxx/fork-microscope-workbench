@@ -1,0 +1,33 @@
+{
+  "base": {
+    "prompt": "Choose one option.",
+    "answers": [
+      "OPTION=A",
+      "OPTION=B"
+    ],
+    "mode": "chat",
+    "max_tokens": 2048,
+    "seed": 0
+  },
+  "run": {
+    "cont_max": 2048,
+    "temperature": 1.0,
+    "top_k": 20,
+    "threshold": 0.05,
+    "dense": false,
+    "reference_samples": 20,
+    "tuning": "cv",
+    "passes": [
+      {
+        "id": "pass_1",
+        "label": "Synthetic grid fixture",
+        "start": 0,
+        "end": 1582,
+        "stride": 113,
+        "offset": 0,
+        "samples": 12,
+        "seed": 7
+      }
+    ]
+  }
+}

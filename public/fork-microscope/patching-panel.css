@@ -1,0 +1,21 @@
+.patching-panel .patching-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:16px 0; }
+.patching-panel label { display:flex; flex-direction:column; gap:7px; min-width:0; }
+.patching-panel input,.patching-panel select,.patching-panel textarea { width:100%; box-sizing:border-box; }
+.patching-panel .patching-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:16px 0; }
+.patching-panel .patching-actions select { flex:1 1 240px; min-width:0; }
+.patching-panel .patching-results { width:100%; border-collapse:collapse; margin:16px 0; font-variant-numeric:tabular-nums; }
+.patching-panel .patching-results th,.patching-panel .patching-results td { text-align:left; padding:10px 6px; border-bottom:1px solid var(--border,rgba(255,255,255,.12)); }
+.patching-panel .recorded-text { white-space:pre-wrap; overflow-wrap:anywhere; max-height:400px; overflow:auto; }
+.patching-panel details { margin:12px 0; }
+@media(max-width:650px) { .patching-panel .patching-grid { grid-template-columns:1fr; } .patching-panel .patching-results { font-size:12px; } }
+.patching-panel { min-width:0; padding-top:12px; }
+.patching-panel p { line-height:1.6; color:#c0cfda; max-width:90ch; }
+.patching-panel label { font-size:.93rem; }
+.patching-panel input,.patching-panel select,.patching-panel textarea { padding:.7rem; background:#0d1821; color:#edf6ff; border:1px solid #647582; border-radius:6px; font:inherit; }
+.patching-panel textarea { min-height:82px; resize:vertical; }
+.patching-panel summary { cursor:pointer; padding:.7rem 0; }
+.patching-panel button { min-height:42px; }
+.patching-panel button:disabled { opacity:.5; cursor:not-allowed; }
+.patching-panel :is(button,input,select,textarea,summary):focus-visible { outline:2px solid #b7edff; outline-offset:3px; }
+.patching-panel .recorded-text { padding:1rem; background:#09121a; border:1px solid #3f5263; border-radius:8px; font:.88rem/1.65 ui-monospace,SFMono-Regular,Consolas,monospace; }
+.patching-panel [hidden] { display:none!important; }

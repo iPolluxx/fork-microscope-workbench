@@ -1,0 +1,3 @@
+[submodule "vendor/forking-fast"]
+	path = vendor/forking-fast
+	url = https://github.com/ericb-goodfire/forking-fast.git

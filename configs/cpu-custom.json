@@ -1,0 +1,41 @@
+{
+  "load": {
+    "model_id": "HuggingFaceTB/SmolLM2-135M-Instruct",
+    "revision": "12fd25f77366fa6b3b4b768ec3050bf629380bac",
+    "device": "cpu",
+    "batch_size": 4
+  },
+  "base": {
+    "prompt": "What is 7 multiplied by 8? Give only the number.",
+    "answers": [
+      "54",
+      "56",
+      "64",
+      "78"
+    ],
+    "mode": "chat",
+    "max_tokens": 32,
+    "seed": 0
+  },
+  "run": {
+    "cont_max": 64,
+    "temperature": 1.0,
+    "top_k": 1,
+    "threshold": 0.05,
+    "dense": false,
+    "reference_samples": 6,
+    "tuning": "cv",
+    "passes": [
+      {
+        "id": "pass_1",
+        "label": "Pass 1",
+        "start": 0,
+        "end": 1,
+        "stride": 1,
+        "offset": 0,
+        "samples": 5,
+        "seed": 0
+      }
+    ]
+  }
+}

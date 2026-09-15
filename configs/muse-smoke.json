@@ -1,0 +1,41 @@
+{
+  "load": {
+    "model_id": "meta-models/Muse-Glimmer-30B",
+    "revision": "a4e59da52a7bc87ae7251dd5545c0dd437c44b68",
+    "device": "cuda",
+    "batch_size": 1
+  },
+  "base": {
+    "question": "What is 7 multiplied by 8?",
+    "choices": [
+      "54",
+      "56",
+      "64",
+      "78"
+    ],
+    "mode": "chat",
+    "max_tokens": 128,
+    "seed": 0
+  },
+  "run": {
+    "cont_max": 128,
+    "temperature": 1.0,
+    "top_k": 3,
+    "threshold": 0.05,
+    "dense": false,
+    "reference_samples": 5,
+    "tuning": "cv",
+    "passes": [
+      {
+        "id": "pass_1",
+        "label": "Pass 1",
+        "start": 0,
+        "end": 17,
+        "stride": 16,
+        "offset": 0,
+        "samples": 5,
+        "seed": 0
+      }
+    ]
+  }
+}

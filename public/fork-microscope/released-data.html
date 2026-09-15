@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Fork microscope · Released-data explorer</title>
+  <meta name="description" content="Inspect two offset sampling passes together and estimate their cost against sampling every position.">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/plotly.min.js" defer></script>
+  <script type="module" src="/app.js"></script>
+<script src="worker-connection.js?v=machine-pairing-20260914"></script>
+<script src="/method-credit.js"></script>
+<link rel="stylesheet" href="/app-navigation.css?v=unified-1"></head>
+<body>
+  <!-- APP_NAVIGATION_START -->
+<header class="app-shell"><div class="app-shell-inner"><a class="app-brand" href="/workspace.html" aria-label="Fork microscope · Workspace"><span class="app-mark" aria-hidden="true">✳</span><span>Fork microscope<small>Research workbench</small></span></a><nav class="app-nav" aria-label="Main navigation"><a href="/workspace.html">Workspace</a><a href="/live.html">Configure</a><a href="/observatory.html" aria-current="page">Explore</a><a href="/compare.html">Compare</a><a href="/guide.html">Guide</a></nav></div></header>
+<!-- APP_NAVIGATION_END -->
+<div class="app-page-tools"><h1>Released-data explorer</h1><div class="header-actions"><span class="local-status">Recorded data · local</span><button id="reset" type="button">Reset settings</button></div></div>
+  <main class="workspace">
+    <aside class="controls" aria-label="Sampling controls">
+      <h2>Set the sampling</h2>
+      <form id="controls" autocomplete="off">
+        <label for="row">Question</label><select id="row" name="row"><option value="39">Row 039 · Salary distribution</option></select>
+        <label for="samples">Samples per checkpoint <span id="sample-range">1–200</span></label><input id="samples" name="samples" type="number" min="1" max="200" step="1" value="30">
+        <p class="help">The same number for each pass and the dense baseline.</p>
+        <div class="field-pair"><div><label for="stride">Spacing <span>tokens</span></label><input id="stride" name="stride" type="number" min="2" max="64" step="1" value="4"></div><div><label for="shift">Pass 2 offset <span>tokens</span></label><input id="shift" name="shift" type="number" min="1" max="3" step="1" value="1"></div></div>
+        <div class="grid-key"><p><i class="dot blue"></i><strong>Pass 1</strong><span id="first-pattern">0, 4, 8, 12…</span></p><p><i class="dot orange"></i><strong>Pass 2</strong><span id="second-pattern">1, 5, 9, 13…</span></p></div>
+        <fieldset><legend>Region to inspect</legend><div class="field-pair"><div><label for="start">First token</label><input id="start" name="start" type="number" min="0" step="1" value="0"></div><div><label for="end">Last token</label><input id="end" name="end" type="number" min="1" step="1" value="343"></div></div><p class="help" id="region-help">Response-token positions, starting at 0.</p></fieldset>
+        <details class="advanced"><summary>Recorded sample slice</summary><label for="draw_start">Start at recorded draw</label><input id="draw_start" name="draw_start" type="number" min="0" max="199" step="1" value="0"><p class="help">Draw start plus samples cannot exceed 200. This reuses stored outcomes; it does not collect new ones.</p></details>
+      </form>
+      <details class="gpu-calculator"><summary>Estimate GPU time &amp; dollars</summary><label for="throughput">Measured output throughput</label><div class="unit-input"><input id="throughput" type="number" min="0.001" step="any" placeholder="Your measurement"><span>tokens/s</span></div><label for="hourly-rate">GPU hourly rate</label><div class="unit-input"><input id="hourly-rate" type="number" min="0" step="any" placeholder="Your rate"><span>USD/hour</span></div><p class="help">Use effective throughput from a comparable run. These are your assumptions, not quoted prices.</p><div id="gpu-result" aria-live="polite">Enter throughput to estimate time.</div></details>
+      <div id="error" class="error" role="alert" hidden></div>
+    </aside>
+    <section class="analysis" aria-label="Sampling comparison">
+      <section class="question-panel"><div class="eyebrow" id="model-label">Llama-3-8B-Instruct · Row 039</div><h2 id="question-text">In one metropolitan region, technical writers have an annual salary that is approximately normally distributed with a mean of $55,800. The first quartile of salaries is $48,815. What is the standard deviation?</h2><details><summary>Answer choices <span id="answer-key"></span></summary><ol id="choices" type="A"></ol></details></section>
+      <section aria-label="Live cost calculator" class="cost-panel">
+        <div class="section-heading"><h2>Estimated sampling cost</h2><span>Updates with your settings</span></div>
+        <div class="metrics" aria-live="polite"><div><span>Both passes</span><strong id="combined-tokens">—</strong><small>continuation tokens</small></div><div><span>Every position</span><strong id="dense-tokens">—</strong><small>same region and sample count</small></div><div><span>Smaller token allowance</span><strong id="saving">—</strong><small>not matched-accuracy savings</small></div><div><span>Checkpoints</span><strong id="checkpoints">—</strong><small id="continuations">combined / dense</small></div></div>
+        <div class="cost-breakdown"><span><i class="dot blue"></i>Pass 1 <b id="first-cost">—</b></span><span><i class="dot orange"></i>Pass 2 <b id="second-cost">—</b></span><span id="checkpoint-count">Same fixed base trace</span></div>
+      </section>
+      <section class="plot-panel">
+        <div class="plot-heading"><div><h2>Both readouts, together</h2><p id="plot-status" role="status">Loading recorded outcomes…</p></div><div class="display-controls"><label for="category">Outcome</label><select id="category"><option value="B">B · correct answer</option></select><label class="check"><input type="checkbox" id="show-smooth" checked>Smoothed</label><label class="check"><input type="checkbox" id="show-reference" checked>Reference</label></div></div>
+        <div id="plot" aria-label="Probability of the selected outcome by response-token position"></div>
+        <div class="plot-footer"><span id="token-inspector">Hover a point to inspect its token.</span><span>Dots: observed estimates · Lines: separate fits</span></div>
+      </section>
+      <details class="trace-panel"><summary>Read the fixed response <span>Checkpoint colors match the chart</span></summary><div id="trace" class="trace"></div></details>
+      <details class="method-panel"><summary>How these estimates work</summary><div class="method-copy"><p>For each selected position, the calculator uses the recorded continuation lengths, weighted by the probabilities of the retained next-token branches. It multiplies their expected length by your sample count, then adds the two passes. The baseline samples every token in the same selected region at the same sample count.</p><p>The two grids are paired so neither gets an extra checkpoint at the end. Their readouts are fitted separately; one pass never replaces a detection or observation from the other. Fits use Forking Fast’s segment-kernel estimator with fixed penalty 64 and bandwidth 32.</p><p>The gray reference includes the recorded draws used by the smaller samples. It is not independent ground truth or a confidence bound. Changing the region does not change the already-recorded continuation length cap. All five outcome categories remain available.</p><p>A smaller token allowance does not establish matched-accuracy savings or measured runtime savings. Model loading, base generation, prefix processing, padding, answer extraction and CPU reconstruction are excluded. Optional time and dollar estimates use only the throughput and rate you enter.</p><p>Source: Forking Fast’s released Llama-3-8B-Instruct outcomes, 100 tinyMMLU questions, revision <code>d32fed8</code>. No model is loaded and no paid generation occurs here.</p></div></details>
+    </section>
+  </main>
+<script>addEventListener('worker-connection-change', () => location.reload());</script></body></html>

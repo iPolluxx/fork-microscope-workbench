@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this workbench, cite this software and the underlying Goodfire Forking Fast research separately."
+title: "Fork Microscope"
+type: software
+authors:
+  - family-names: Rice
+    given-names: Isaiah Arthur
+version: 0.1.0-beta.1
+date-released: 2026-09-10
+repository-code: "https://github.com/iPolluxx/fork-microscope-workbench"
+url: "https://github.com/iPolluxx/fork-microscope-workbench"
+license: MIT
+abstract: "A research workbench for checkpoint sampling, exact-trace refinement and comparison of generated model outcomes. Built around Goodfire Forking Fast; third-party dependencies retain separate terms."

@@ -1,0 +1,22 @@
+{
+  "model": {
+    "model_id": "meta-models/Muse-Glimmer-30B",
+    "revision": "a4e59da52a7bc87ae7251dd5545c0dd437c44b68",
+    "device": "cuda",
+    "batch_size": 1
+  },
+  "base": {
+    "prompt": "Choose between Plan A, which guarantees 70 attendees, and Plan B, which has a 50% chance of 40 attendees and a 50% chance of 110. Costs are equal. No risk preference or minimum attendance is specified. Briefly explain your choice. End with exactly CHOICE=A or CHOICE=B, and use these labels only on the final line.",
+    "answers": ["CHOICE=A", "CHOICE=B"],
+    "mode": "chat",
+    "max_tokens": 1536,
+    "seed": 23
+  },
+  "scan": {
+    "start": 0, "end": 128, "stride": 32, "samples": 10,
+    "cont_max": 1536, "temperature": 1.0, "top_k": 5, "threshold": 0.05, "seed": 101
+  },
+  "refinement": {"max_rounds": 1, "stride": 4, "samples": 20, "min_tvd": 0.25},
+  "lens": {"profile": "muse_glimmer", "layers": [12, 20, 28, 35, 43], "before": 1, "after": 5, "top_k": 10},
+  "limits": {"max_seconds": 3600, "max_samples": 250, "max_generated_tokens": 400000}
+}

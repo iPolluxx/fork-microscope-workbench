@@ -1,0 +1,42 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+live-runs/
+outputs/
+.env
+.env.*
+*.log
+*.safetensors
+*.bin
+*.gguf
+*.pem
+*.key
+!configs/*.json
+
+workspace-data/
+
+# Local AI-tool configuration
+.agents/
+.codex/
+.claude/
+.impeccable/
+
+# Local registry and machine credentials
+.npmrc
+.pypirc
+.netrc
+.ssh/
+.aws/
+
+# Private development and launch material
+reports/
+docs/launch/
+private-launch-materials/
+private-project-archives/
+investigations/
+
+workflow-jobs/
+investigation-bundles/

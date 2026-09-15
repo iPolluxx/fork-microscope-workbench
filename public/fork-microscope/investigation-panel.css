@@ -1,0 +1,12 @@
+/* generated: Codex */
+.investigation-panel {margin:2rem 0;padding:1.5rem;border:1px solid #52616e;border-radius:16px;background:#101b25;}
+.investigation-panel h2,.investigation-panel h3 {margin-bottom:.7rem;}
+.investigation-panel p {line-height:1.6;color:#c0cfda;}
+.investigation-controls {display:flex;flex-wrap:wrap;gap:1rem;align-items:start;}
+.investigation-controls label {display:flex;flex-direction:column;gap:.4rem;min-width:130px;}
+.investigation-panel textarea {width:min(650px,75vw);font:inherit;padding:.7rem;}
+.investigation-panel input,.investigation-panel select {padding:.6rem;max-width:100%;background:#101b25;color:#edf6ff;border:1px solid #647582;border-radius:6px;}
+.investigation-actions {display:flex;flex-wrap:wrap;gap:.75rem;margin:1rem 0;}
+.investigation-panel table {border-collapse:collapse;display:block;overflow-x:auto;margin:1rem 0;}
+.investigation-panel th,.investigation-panel td {padding:.65rem;text-align:left;border-bottom:1px solid #52616e;}
+.investigation-panel [hidden] {display:none!important;}

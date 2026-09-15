@@ -1,0 +1,3 @@
+# Optional local read-only capture. CPU random-model parity tested; not a Muse certification.
+# Keep this in the compute worker environment, not the hosted viewer.
+nnsight==0.7.0
