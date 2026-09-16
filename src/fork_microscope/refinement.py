@@ -24,7 +24,7 @@ def build_plan(result, record, request):
     revision=result['model'].get('resolved_revision')
     if not revision:raise ValueError('Source has no resolved model revision.')
     total=len(positions)*request['samples']
-    return dict(schema='fork-refinement-v1',request=copy.deepcopy(request),model=copy.deepcopy(result['model']),base=copy.deepcopy(record['base']),base_config=copy.deepcopy(result['base_config']),run=settings,
+    return dict(schema='fork-refinement-v1',source_response_id=result.get('source_response_id'),request=copy.deepcopy(request),model=copy.deepcopy(result['model']),base=copy.deepcopy(record['base']),base_config=copy.deepcopy(result['base_config']),run=settings,
         lineage=dict(source_run_id=result['id'],source_pass_id=request['source_pass_id'],source_cont_max=result['settings']['cont_max'],source_ids_sha256=hashlib.sha256(json.dumps({'prompt_ids':record['base']['prompt_ids'],'gen_ids':ids},sort_keys=True).encode()).hexdigest(),interval=[request['start'],request['end']],selected_after_inspecting_source=True),
         source_positions=[p for p in record.get('positions',[]) if p['t'] in positions],summary=dict(checkpoints=len(positions),continuations=total,max_new_tokens=total*request['cont_max'],cap_changed=request['cont_max']!=result['settings']['cont_max']))
 

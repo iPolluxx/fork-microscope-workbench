@@ -1,3 +1,6 @@
+import {getSelection,selectionURL} from './selection.mjs';
+// generated: Codex, fork-microscope-revamp-ASTRA-BRIEF.md — shared operation accounting.
+import {startEvidenceOperation,budgetScopeNote} from './scoped-operation.mjs';
 import {jobProgress} from './job-progress.mjs';
 function sameModel(left, right) {
   if(!left || !right)return false;
@@ -11,7 +14,7 @@ const format = value => new Intl.NumberFormat('en-US', {maximumFractionDigits: 0
 
 export function mountRefinement(host, getContext) {
   host.innerHTML = `<section class="refinement-panel" aria-label="Refinement settings">
-    <p class="ref-intro">Keep this exact original trace. Collect fresh continuations inside a region, or measure a larger reference for comparison.</p><div class="ref-actions"><button id="ref-detail" class="secondary" type="button">Refine interval</button><button id="ref-reference" class="secondary" type="button">Reference preset · 100 per token</button></div>
+    <p class="ref-intro">Keep this exact original response. Collect fresh continuations inside a region, or measure a larger reference for comparison.</p><div class="ref-actions"><button id="ref-detail" class="secondary" type="button">Refine interval</button><button id="ref-reference" class="secondary" type="button">Reference preset · 100 per token</button></div>
     <label class="ref-region-label">Region <select id="ref-region"></select></label>
     <div class="ref-grid">
       <label>From token<input id="ref-start" type="number" min="0" step="1"></label>
@@ -29,6 +32,7 @@ export function mountRefinement(host, getContext) {
     <p id="ref-status" role="status" class="ref-status"></p><p id="ref-notice" role="status" class="ref-status" hidden></p>
     <a id="ref-connect" href="/live.html">Set up the source model →</a>
   </section>`;
+  const scope=document.createElement('p');scope.className='micro';scope.textContent=budgetScopeNote();host.append(scope);
   const $ = id => host.querySelector('#ref-' + id);
   const fields = ['start', 'end', 'stride', 'samples', 'cont_max', 'seed'];
   let worker = null, job = null, jobSource = null, pending = false, timer = null, serial = 0;
@@ -73,7 +77,7 @@ export function mountRefinement(host, getContext) {
     const matches = sameModel(worker?.model,result.model);
     $('run').disabled = !allowed || pending || !matches || worker?.job?.status === 'running';
     $('connect').hidden = !!matches;
-    $('connect').href = '/live.html?source=' + encodeURIComponent(result.id) + '#model-setup';
+    const setup=new URL(selectionURL({...getSelection(),return_area:'explore'},'setup',location.href),location.href);setup.searchParams.set('source',result.id);$('connect').href=setup;
     return allowed;
   }
   async function api(path, payload) {
@@ -102,14 +106,14 @@ export function mountRefinement(host, getContext) {
         $('status').textContent = `${otherSource ? 'Refinement of another saved run · ' : ''}${worker.job.phase} · ${jobProgress(worker.job)}`;
         if (otherSource) {
           const source = document.createElement('a');
-          source.href = '/observatory.html?run=' + encodeURIComponent(jobSource);
+          source.href=selectionURL({...getSelection(),run_id:jobSource},'explore',location.href);
           source.textContent = 'View its source'; $('status').append(' · ', source);
         }
         if (worker.job.status === 'complete' && worker.job.result_id) {
           const link = document.createElement('a');
-          link.href = '/observatory.html?run=' + encodeURIComponent(worker.job.result_id);
+          link.href=selectionURL({...getSelection(),run_id:worker.job.result_id,pass_id:null,checkpoint:null,pair:null,continuation:null,inspection_id:null},'explore',location.href);
           link.textContent = 'Open refinement →';
-          notice('Run saved with its parent trace.', link);
+          notice('Run saved with its parent response.', link);
           const compareLink = document.createElement('a'); compareLink.href='/compare.html?left='+encodeURIComponent(jobSource)+'&right='+encodeURIComponent(worker.job.result_id); compareLink.textContent='Compare with source →'; $('notice').append(' · ',compareLink);
           job = null;
         }
@@ -118,7 +122,7 @@ export function mountRefinement(host, getContext) {
       const {result} = getContext();
       const matches = sameModel(worker.model,result.model);
       $('status').textContent = worker.job.status === 'running' ? `Worker busy: ${worker.job.phase}` : matches
-        ? 'Source model is ready. Run refinement restores the saved trace and starts generation.'
+        ? 'Source model is ready. Run refinement restores the saved response and starts generation.'
         : 'No matching source model attached. Set it up here, or export this job for another GPU worker.';
     } catch (error) {
       if (current !== serial) return;
@@ -152,7 +156,7 @@ export function mountRefinement(host, getContext) {
     if ($('run').disabled || pending) return;
     const settings = request();
     pending = true; preview(); notice();
-    try { const response = await api('refine', settings); job = response.job_id; jobSource = settings.source_run_id; }
+    try { const response = await startEvidenceOperation('refine', settings); job = response.job_id; jobSource = settings.source_run_id; }
     catch (error) { notice(error.message); }
     finally { pending = false; await status(); }
   };
@@ -177,7 +181,7 @@ export function mountRefinement(host, getContext) {
   function refresh() {
     const {result, evidence, pass} = getContext();
     const boundaries = evidence.segmentationEnabled ? (pass.curve?.boundaries ?? []) : [];
-    $('region').replaceChildren(new Option('Custom interval', ''), new Option('Entire original trace', `0:${result.base.length - 1}`), ...boundaries.map(b => new Option(`Candidate ${b.left}–${b.right}`, `${b.left}:${b.right}`)));
+    $('region').replaceChildren(new Option('Custom interval', ''), new Option('Entire original response', `0:${result.base.length - 1}`), ...boundaries.map(b => new Option(`Candidate ${b.left}–${b.right}`, `${b.left}:${b.right}`)));
     $('cont_max').value = result.settings.cont_max;
     $('seed').value = crypto.getRandomValues(new Uint32Array(1))[0] & 2147483647;
     const a = boundaries[0]?.left ?? evidence.observed[0]?.t ?? 0;

@@ -1,3 +1,4 @@
+# generated: Codex — investigation catalog and durable-response API routes.
 """Static dashboard and single-owner worker API with opt-in authenticated origins."""
 import os
 os.environ.setdefault("OTRECON_FORCE_RUPTURES", "1")
@@ -76,6 +77,14 @@ class Handler(SimpleHTTPRequestHandler):
         if parsed.path in ("/", "/index.html"): self.path = "/workspace.html"
         if parsed.path.startswith("/api/live/"):
             try:
+                if parsed.path == '/api/live/response':
+                    q=parse_qs(parsed.query)
+                    if set(q) != {'id'} or len(q['id']) != 1: raise ValueError('Provide one response ID.')
+                    return self.json_response(200, LIVE.response(q['id'][0]))
+                if parsed.path == '/api/live/responses':
+                    q=parse_qs(parsed.query)
+                    if set(q) - {'investigation_id'}: raise ValueError('Unknown response query.')
+                    return self.json_response(200, LIVE.responses(q.get('investigation_id', [None])[0]))
                 if parsed.path == '/api/live/workflows' and not parsed.query:
                     return self.json_response(200, WORKFLOWS.list())
                 if parsed.path in ('/api/live/workflow', '/api/live/workflow-export', '/api/live/bundle-export'):
@@ -138,7 +147,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json_response(400, {"error": str(exc)})
             except Exception:
                 return self.json_response(500, {"error": "Reconstruction failed for these settings. Try a wider region."})
-        if parsed.path not in ("/", "/index.html", "/released-data.html", "/app.js", "/math.mjs", "/passes.mjs", "/graph-evidence.mjs", "/observatory.html", "/observatory.mjs", "/refinement-panel.mjs", "/refinement-panel.css", "/investigation-panel.mjs", "/investigation-panel.css", "/lens-panel.mjs", "/lens-panel.css", "/patching-panel.mjs", "/patching-panel.css", "/journey.css", "/walkthrough.mjs", "/evidence-import.mjs", "/observatory.css", "/observatory-base.css", "/styles.css", "/plotly.min.js", "/live.html", "/live.js", "/compute-readiness.mjs", "/live.css", "/workspace.html", "/workspace.mjs", "/workspace.css", "/compare.html", "/compare.mjs", "/compare.css", "/worker-connection.js", "/method-credit.js", "/job-progress.mjs", "/response-review.mjs", "/download.mjs", "/workflow-panel.mjs", "/guide.html", "/guide.css", "/guide.mjs", "/app-navigation.css"):
+        if parsed.path not in ("/", "/index.html", "/released-data.html", "/app.js", "/math.mjs", "/passes.mjs", "/graph-evidence.mjs", "/observatory.html", "/observatory.mjs", "/refinement-panel.mjs", "/refinement-panel.css", "/investigation-panel.mjs", "/investigation-panel.css", "/lens-panel.mjs", "/lens-panel.css", "/patching-panel.mjs", "/patching-panel.css", "/journey.css", "/walkthrough.mjs", "/evidence-import.mjs", "/observatory.css", "/observatory-base.css", "/styles.css", "/plotly.min.js", "/live.html", "/live.js", "/compute-readiness.mjs", "/live.css", "/workspace.html", "/workspace.mjs", "/workspace.css", "/compare.html", "/compare.mjs", "/compare.css", "/worker-connection.js", "/method-credit.js", "/job-progress.mjs", "/response-review.mjs", "/download.mjs", "/workflow-panel.mjs", "/guide.html", "/guide.css", "/guide.mjs", "/app-navigation.css", "/request-retry.mjs", "/scoped-operation.mjs", "/classification.mjs", "/offline-evidence.mjs", "/demo-attendance.json", "/selection.mjs", "/investigation-shell.mjs", "/investigation-shell.css", "/investigation-workbench.mjs"):
             return self.send_error(404)
         super().do_GET()
 
@@ -166,6 +175,13 @@ class Handler(SimpleHTTPRequestHandler):
             if not 0<size<=limit: raise ValueError("Evidence imports must be under 64 MB." if limit==MAX_IMPORT_BYTES else "Invalid request size.")
             payload=json.loads(self.rfile.read(size))
             if route.query: raise ValueError("Unexpected query string.")
+            if route.path == '/api/live/classifier-preview':
+                from fork_microscope.investigation_records import classify
+                exact(payload, 'rule text complete')
+                return self.json_response(200, classify(payload['rule'], payload['text'], payload['complete']))
+            if route.path in ('/api/live/workflow-create','/api/live/workflow-update','/api/live/workflow-search','/api/live/workflow-operation'):
+                action=route.path.rsplit('-',1)[-1]
+                return self.json_response(202 if action in ('search','operation') else 200, getattr(WORKFLOWS, action)(payload))
             if route.path == '/api/live/workflow-start':
                 return self.json_response(202, WORKFLOWS.start(payload))
             if route.path in ('/api/live/workflow-cancel', '/api/live/workflow-resume'):

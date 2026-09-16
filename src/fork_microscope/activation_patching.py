@@ -109,6 +109,7 @@ def build_plan(adapter, result, request, get_investigation=lambda _: None):
         sampling=dict(temperature=q['temperature'], top_p=1.0, top_k=0, batch_size=1,
                       branch_filter=False, same_seed_per_draw=True, use_cache=True),
         answers=copy.deepcopy(result.get('base_config', {}).get('answers')),
+        outcome_rule=copy.deepcopy(result.get('base_config', {}).get('outcome_rule')),
         continuations=3*q['samples'], max_new_tokens=3*q['samples']*q['cont_max'],
         time_limit=dict(seconds=q['max_seconds'], enforcement='cooperative between forward calls and draws; an in-flight kernel cannot be preempted'),
         interpretation=INTERPRETATION)
@@ -241,7 +242,7 @@ def run(adapter, plan, check, progress, save):
                     max_tokens=q['cont_max'], temperature=q['temperature'], seed=seed)
             if len(sampled)!=1 or len(sampled[0])!=1:
                 raise ValueError('Model returned an unexpected continuation count.')
-            observation = inspect_generated(adapter, prefix['response_ids'], sampled[0][0], q['cont_max'], plan['answers'])
+            observation = inspect_generated(adapter, prefix['response_ids'], sampled[0][0], q['cont_max'], plan['answers'], rule=plan.get('outcome_rule'))
             out['observations'].append(dict(observation, arm=arm, draw=draw, seed=seed,
                 wall_seconds=seconds, prefill_patch_count=0 if arm=='baseline' else len(q['layers']),
                 forward_calls={str(k):v for k,v in calls.items()}))

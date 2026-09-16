@@ -1,6 +1,7 @@
+<!-- generated: Codex — documentation updated for the investigation revamp, 2026-09-15; authorized by Isaiah. -->
 # Cloud Run static dashboard
 
-This is the web interface only. The nginx container contains the explicitly built dashboard assets and license notices. There is no worker API, inference library, model, saved prompt, run record, cloud credential or upstream Goodfire Python/data in the deployment. The image runs as the nginx user and listens on port 8080.
+This is the web interface only. The nginx container contains the explicitly built dashboard assets and license notices. The curated attendance demo includes its saved prompt and evidence. No worker API, inference library, model weights, other private run archives, cloud credentials or upstream Goodfire Python/data enter the deployment. The image runs as the nginx user and listens on port 8080.
 
 ## First deployment prerequisites
 
@@ -26,7 +27,7 @@ The service's default HTTPS URL is printed after deployment. Connect a worker th
 
 ## Verify and maintain
 
-- Open Workspace, Configure, Explore and Compare at the returned URL without Google login.
+- Open the demo, Setup, Explore, Inspect & Test, and Workspace at the returned URL without Google login.
 - `/fork-microscope-ready` returns `ok`; `/api/live/status` returns 404 because compute belongs on the separately owned worker.
 - Browser tokens stay in tab session storage and requests go directly to the selected worker. No reverse proxy to arbitrary worker URLs is provided.
 - The service uses revalidation for static assets so a new deployment does not retain stale unversioned JavaScript. Browser modules use the JavaScript MIME type. Gzip is enabled for JS, CSS and JSON.

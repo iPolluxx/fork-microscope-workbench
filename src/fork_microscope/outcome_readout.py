@@ -51,10 +51,13 @@ def completed_reply(raw, is_muse):
     return raw
 
 
-def inspect_base(model, base, answers=None):
+def inspect_base(model, base, answers=None, rule=None):
     """Preview the same completed-reply matcher used for collected outcomes."""
     complete = base.finish_reason == 'stop'
     raw = model.tokenizer.decode(base.gen_ids, skip_special_tokens=False)
+    if rule is not None:
+        from fork_microscope.investigation_records import classify
+        return classify(rule, raw, complete, getattr(model, 'is_muse', False))
     reply = completed_reply(raw, getattr(model, 'is_muse', False)) if complete else None
     matches = match_answer_text(reply, answers) if reply is not None and answers is not None else []
     label = (matches[0] if len(matches) == 1 else None) if answers is not None else (
@@ -97,7 +100,7 @@ def extract_answers_for_branches(model, base, branches, continuations, cfg, suff
         extractor="Muse completed to=user channel; unfinished/unparseable -> Other")
 
 
-def inspect_continuation(model, base, branch, cont, cap, answers=None):
+def inspect_continuation(model, base, branch, cont, cap, answers=None, rule=None):
     """Strict outcome readout: a capped generation is never a final answer.
 
     Upstream strips EOS; len(cont)<cap (or a forced EOS) establishes stopping.
@@ -124,6 +127,10 @@ def inspect_continuation(model, base, branch, cont, cap, answers=None):
             reply=raw  # Preserve the exact legacy regex input for inspection.
             label=parse_mmlu_answer(raw)
             source='completed_regex' if label else 'unparsed'
+    if rule is not None:
+        from fork_microscope.investigation_records import classify
+        readout = classify(rule, raw, complete, is_muse)
+        label = readout['label']; matches = readout['matched_answers']; source = readout['status']
     return dict(label=label or 'Other',label_source=source,channel_reached=channel,matched_answers=matches,reply_text=reply,
         stop_reason='eos' if complete else 'length',
         stop_reason_evidence='forced_eos' if branch.tok_id in model.eos_ids else 'inferred_from_stripped_length',

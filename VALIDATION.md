@@ -1,3 +1,4 @@
+<!-- generated: Codex — documentation updated for the investigation revamp, 2026-09-15; authorized by Isaiah. -->
 # Validation scope
 
 Validation separates the application tests, the pinned estimator's numerical checks and actual model inference. Passing CPU tests does not establish GPU performance or scientific reliability for an arbitrary model.
@@ -17,6 +18,32 @@ node --test tests/test_*.mjs
 ```
 
 These checks do not require private run archives or a GPU. The build commands produce local files only; they do not deploy a service. Generated audits and build artifacts are excluded from Git.
+
+## Investigation revamp — 2026-09-15
+
+The full local suite passed **303 Python tests (3 skipped)** and **48 JavaScript
+tests**. A subsequent copy-only terminology cleanup passed 20 targeted JavaScript
+tests and module syntax checks. Both static build paths are checked before release.
+Tests cover exact response replay, safe retries, cancellation ownership, bundle
+integrity/provenance, browser import/export and selection restoration.
+
+A real local CPU SmolLM2-135M-Instruct workflow generated a response, scanned its
+saved token sequence, exported version-3 evidence and imported it into the static
+browser. The updated scan took 164.660 seconds in that local test; this is not a
+GPU performance estimate. GUI transfer to an empty worker preserved the response
+without loading a model. Saved Muse evidence supported browser/readout checks;
+no new Muse GPU run was performed for the revamp.
+
+The compatibility audit opened 19 historical runs without modifying 76 source
+JSON files and round-tripped 12 supported families. Two earliest legacy runs lack
+saved decoded continuation text and finish metadata: their curves remain readable,
+but missing text is not manufactured. Synthetic intervention fixtures and saved
+readouts do not constitute fresh on-model intervention validation.
+
+A warm-cache fresh local clone installed successfully. This was not a cold remote
+VM test. Agent browser checks found no mobile overflow at 390 pixels and preserved
+selection through navigation/refresh. A new human participant has not yet tested
+this workflow; usability acceptance remains unverified.
 
 ## Package-layout verification — 2026-09-14
 

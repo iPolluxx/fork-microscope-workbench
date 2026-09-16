@@ -1,3 +1,7 @@
+// generated: Codex, fork-microscope-revamp-ASTRA-BRIEF.md — shared operation accounting.
+import {startEvidenceOperation,budgetScopeNote} from './scoped-operation.mjs';
+// generated: Codex, fork-microscope-revamp-ASTRA-BRIEF.md — selected trajectories and recoverable inspection settings.
+import {getSelection,setSelection,selectionURL,saveDraft,readDraft} from './selection.mjs';
 // generated: Codex — exact-token, read-only Jacobian lens exploration.
 import {saveJSON} from './download.mjs';
 export function parseLensLayers(value) {
@@ -125,6 +129,7 @@ export function mountLens(host, getContext) {
     </details><h3>Saved lens readouts</h3>
     <div class="lens-saved-controls"><label>Readout artifact<select data-saved><option value="">Choose a saved readout</option></select></label><button data-refresh class="secondary" type="button">Refresh saved</button><button data-export class="secondary" type="button" disabled>Download JSON</button></div>
     <div data-empty-readouts hidden><p class="lens-note">No lens readouts have been saved for this run. Set up an inspection around your selected checkpoint, then preview the exact positions. Running it requires connected compute with the compatible model and lens; opening these settings does not start a job.</p><button data-configure-empty class="primary" type="button">Configure a readout</button></div><p data-saved-status class="lens-note" role="status"></p><div data-output></div>`;
+  const scope=document.createElement('p');scope.className='micro';scope.textContent=budgetScopeNote();host.append(scope);
   const $ = selector => host.querySelector(selector), f = name => $(`[data-lens="${name}"]`);
   let revision = 0, preview = null, activeJob = null, artifact = null, contextKey = '', editArtifact = null, options = null, savedRevision = 0;
   const status = message => { $('[data-status]').textContent = message; };
@@ -178,7 +183,7 @@ export function mountLens(host, getContext) {
   }
   function fillPair(first = Number(f('pair_a').value), second = Number(f('pair_b').value)) {
     const rows = completedDraws(getContext().record, getContext().position), pair = outcomePair(rows, first, second);
-    const option = o => new Option(`Draw ${o.draw_index + 1} · ${o.label}`, String(o.draw_index));
+    const option = o => new Option(`Continuation ${o.draw_index + 1} · ${o.label}`, String(o.draw_index));
     f('pair_a').replaceChildren(...rows.map(option));
     f('pair_b').replaceChildren(...rows.filter(o => o.label !== pair[0]?.label).map(option));
     if (pair.length) { f('pair_a').value = String(pair[0].draw_index); f('pair_b').value = String(pair[1].draw_index); }
@@ -220,12 +225,12 @@ export function mountLens(host, getContext) {
     const lenses = rows.filter(x => x.schema === 'fork-lens-v1' || x.request?.lens);
     $('[data-empty-readouts]').hidden = lenses.length !== 0;
     $('[data-saved]').replaceChildren(new Option(lenses.length ? 'Choose a saved readout' : 'No saved lens readouts for this run', ''), ...lenses.map(x => new Option(`${x.request?.selection?.type === 'draw_pair' ? 'Outcome pair' : x.request?.selection?.type === 'original' ? 'Original response' : 'Selected trajectory'} · ${x.request?.start}–${x.request?.end} · ${x.status} · ${x.id.slice(0, 8)}`, x.id)));
-    if (lenses.some(x => x.id === selected)) $('[data-saved]').value = selected;
+    const requested=getSelection().inspection_id||selected;if(lenses.some(x=>x.id===requested)){$('[data-saved]').value=requested;const data=await api('investigation?id='+encodeURIComponent(requested));if(own===savedRevision){render(data);$('[data-config]').open=false;}}
     const edits = rows.filter(x => x.request?.kind === 'edit' && x.request?.source_pass_id === c.pass?.id);
     f('edit').replaceChildren(new Option(edits.length ? 'Choose a saved text edit' : 'Run an edit investigation first', ''), ...edits.map(x => new Option(`${x.status} · span ${x.request.start}–${x.request.end} · ${x.id.slice(0, 8)}`, x.id)));
     if (edits.some(x => x.id === edit)) f('edit').value = edit;
   }
-  host.addEventListener('input', event => { if (event.target.matches('[data-lens]')) invalidate(); });
+  host.addEventListener('input', event => { if (event.target.matches('[data-lens]')) {invalidate();remember();} });
   for (const name of ['profile', 'source', 'space', 'draw']) f(name).addEventListener('change', () => { invalidate(); if (name === 'profile') defaultLayers(); updateVisibility(); fillPair(); showOptions(); updatePositionNote(['source', 'space', 'draw'].includes(name)); });
   for (const name of ['pair_a', 'pair_b']) f(name).onchange = () => { invalidate(); fillPair(); updatePositionNote(true); };
   f('edit').onchange = async () => { invalidate(); editArtifact = null; const id = f('edit').value, v = revision; if (!id) return; try { const data = await api('investigation?id=' + encodeURIComponent(id)); if (v !== revision) return; editArtifact = data; updatePositionNote(true); } catch (e) { status(e.message); } };
@@ -234,7 +239,7 @@ export function mountLens(host, getContext) {
       invalidate(); const v = revision, q = request(); $('[data-preview]').disabled = true; status('Checking exact tokens, lens compatibility and requested layers…');
       const plan = await api('lens-plan', q); if (v !== revision) return;
       preview = JSON.stringify(q); const text = [`${plan.cells} layer × position readouts · ${(plan.arms ?? []).length} ${plan.arms?.length === 1 ? 'trajectory' : 'trajectories'}`, 'Read-only forward pass and lens projections. No new continuation or activation intervention.', `Capture: ${q.inspection_backend === 'nnsight' ? 'NNsight (experimental)' : 'Standard'}.`, plan.lens?.size ? `Lens file ${(plan.lens.size / 1e9).toFixed(2)} GB. Published files are downloaded on Run if not cached; local files are read on the worker.` : '', plan.work ? `Estimated model forwards: ${plan.work.forward_passes} · prefix tokens replayed: ${plan.work.replay_tokens}. ${plan.work.note}` : '', plan.comparison?.first_different_token != null ? `First differing saved response token: ${plan.comparison.first_different_token}. Shared prefix: ${plan.comparison.shared_response_tokens} response tokens.` : '', plan.interpretation, ...(plan.warnings ?? []).map(w => 'Note: ' + w)];
-      for (const arm of plan.arms ?? []) text.push(`\n${armTitle(arm.id).toUpperCase()}${arm.source_draw ? ` · draw ${arm.source_draw.draw_index + 1} · ${arm.source_draw.outcome}` : ""} · exact saved token indices`, ...arm.positions.map(p => `[${p.index}] ${p.text} (token ID ${p.token_id}, absolute position ${p.absolute_position})`));
+      for (const arm of plan.arms ?? []) text.push(`\n${armTitle(arm.id).toUpperCase()}${arm.source_draw ? ` · continuation ${arm.source_draw.draw_index + 1} · ${arm.source_draw.outcome}` : ""} · exact saved token indices`, ...arm.positions.map(p => `[${p.index}] ${p.text} (token ID ${p.token_id}, absolute position ${p.absolute_position})`));
       $('[data-preview-text]').textContent = text.filter(x => x !== undefined).join('\n'); $('[data-preview-text]').hidden = false; $('[data-run]').disabled = !!activeJob; status('Preview ready. Running uses your connected compute and may download the selected published lens.');
     } catch (e) { status(e.message); } finally { $('[data-preview]').disabled = false; }
   };
@@ -285,7 +290,7 @@ export function mountLens(host, getContext) {
     detailHost.hidden = true; detailHost.setAttribute('role', 'region'); detailHost.setAttribute('aria-label', 'Selected cell token rankings'); detailHost.tabIndex = -1;
     const armIds = [...new Set(cells.map(c => c.arm))].sort((a, b) => ['original', 'draw', 'draw_a', 'draw_b', 'control', 'edit'].indexOf(a) - ['original', 'draw', 'draw_a', 'draw_b', 'control', 'edit'].indexOf(b));
     for (const arm of armIds) {
-      const section = el('section', undefined, arms, 'lens-arm'); el('h4', armTitle(arm), section); const source = data.arms?.find(a => a.id === arm)?.source_draw; if (source) el('p', `Draw ${source.draw_index + 1} · ${source.outcome} · checkpoint ${source.checkpoint}`, section, 'lens-note');
+      const section = el('section', undefined, arms, 'lens-arm'); el('h4', armTitle(arm), section); const source = data.arms?.find(a => a.id === arm)?.source_draw; if (source) el('p', `Continuation ${source.draw_index + 1} · ${source.outcome} · checkpoint ${source.checkpoint}`, section, 'lens-note');
       const matrix = lensMatrix(cells, arm), wrap = el('div', undefined, section, 'lens-grid-wrap'); wrap.tabIndex = 0; wrap.setAttribute('role', 'region'); wrap.setAttribute('aria-label', `${armTitle(arm)} layer and position table`);
       const table = el('table', undefined, wrap), header = el('tr', undefined, el('thead', undefined, table)); el('th', 'Input token', header).scope = 'col';
       for (const layer of matrix.layers) el('th', 'Layer ' + layer, header).scope = 'col';
@@ -312,7 +317,7 @@ export function mountLens(host, getContext) {
     } catch (e) { activeJob = null; status(`${e.message} The worker may still be running. Reconnect and refresh saved readouts.`); }
     finally { if (!activeJob) { $('[data-stop]').hidden = true; $('[data-run]').disabled = true; } }
   }
-  $('[data-run]').onclick = async () => { try { const q = request(); if (JSON.stringify(q) !== preview) throw new Error('Preview the current settings first.'); if (activeJob) throw new Error('A lens readout is already being monitored.'); $('[data-run]').disabled = true; const job = await api('lens', q); activeJob = job.job_id; $('[data-stop]').hidden = false; status('Lens readout started.'); poll(activeJob); } catch (e) { status(e.message); } };
+  $('[data-run]').onclick = async () => { try { const q = request(); if (JSON.stringify(q) !== preview) throw new Error('Preview the current settings first.'); if (activeJob) throw new Error('A lens readout is already being monitored.'); $('[data-run]').disabled = true; const job = await startEvidenceOperation('lens', q); activeJob = job.job_id; $('[data-stop]').hidden = false; status('Lens readout started.'); poll(activeJob); } catch (e) { status(e.message); } };
   $('[data-stop]').onclick = async () => { try { if (!activeJob) return; await api('stop', {job_id: activeJob}); status('Stop requested. Completed readout cells remain saved.'); } catch (e) { status(e.message); } };
   $('[data-configure-empty]').onclick = () => {
     const panel = $('[data-config]'); panel.open = true; panel.scrollIntoView({block:'start', behavior:'auto'}); panel.querySelector('summary').focus();
@@ -325,28 +330,29 @@ export function mountLens(host, getContext) {
     $('[data-saved-status]').textContent = id ? 'Opening saved readout…' : '';
     if (!id) return;
     try { const data = await api('investigation?id=' + encodeURIComponent(id));
-      if ($('[data-saved]').value === id && contextKey === sourceKey) { render(data); $('[data-saved-status]').textContent = ''; }
+      if ($('[data-saved]').value === id && contextKey === sourceKey) { render(data);setSelection({inspection_id:id}); $('[data-saved-status]').textContent = ''; }
     } catch (e) { if ($('[data-saved]').value === id && contextKey === sourceKey) $('[data-saved-status]').textContent = e.message; }
   };
   $('[data-export]').onclick = () => { if (artifact) { const data=artifact; saveJSON($('[data-export]'),`lens-${data.id}.json`,()=>data); } };
+  function remember(){const values={};for(const input of host.querySelectorAll('[data-lens]'))if(input.dataset.lens!=='path')values[input.dataset.lens]=input.value;saveDraft('lens',values);const start=Number(f('start').value),end=Number(f('end').value);setSelection({token_region:{space:f('space').value,start,end_exclusive:end+1},layers:f('layers').value.split(',').map(Number)});}
   function clearSelectedReadout() { artifact = null; $('[data-output]').replaceChildren(); $('[data-saved]').value = ''; $('[data-export]').disabled = true; $('[data-saved-status]').textContent = ''; }
-  return {usePair(indices) {
+  return {restoreSettings(selection){const r=selection.token_region;if(r){f('space').value=r.space;f('start').value=r.start;f('end').value=r.end_exclusive-1;}if(selection.layers?.length)f('layers').value=selection.layers.join(', ');updatePositionNote();remember();},useDraw(index){clearSelectedReadout();f('source').value='draw';f('space').value='response';f('draw').value=String(index);updateVisibility();updatePositionNote(true);invalidate();$('[data-config]').open=true;remember();status('Selected continuation carried forward with its exact saved token IDs.');},usePair(indices) {
     clearSelectedReadout();
     f('source').value = 'draw_pair'; f('space').value = 'response';
-    fillPair(indices[0], indices[1]); updateVisibility(); updatePositionNote(true); invalidate();
+    fillPair(indices[0], indices[1]); updateVisibility(); updatePositionNote(true); invalidate();remember();
     $('[data-config]').open = true;
     status('Your selected paths are ready. Preview verifies exact tokens and model compatibility before any compute runs.');
   }, useOriginal() {
-    clearSelectedReadout();
+    setSelection({continuation:null,pair:null,inspection_id:null});clearSelectedReadout();
     f('source').value = 'original'; f('space').value = 'response';
     updateVisibility(); fillPair(); updatePositionNote(true); invalidate(); $('[data-config]').open = true;
     status('Original response selected. Preview checks exact tokens before any compute runs.');
   }, refresh() {
     const c = getContext(); invalidate(); $('[data-configure-empty]').textContent = Number.isInteger(c.position) ? `Configure a readout at token ${c.position}` : 'Configure a readout'; if (!c.record) { status('Open a saved run to inspect its internal states.'); return; }
-     $('[data-model-link]').href = '/live.html?source=' + encodeURIComponent(c.result.id);
+     const setupURL=new URL(selectionURL({...getSelection(),return_area:'inspect'},'setup',location.href),location.href);setupURL.searchParams.set('source',c.result.id);$('[data-model-link]').href=setupURL;
     const key = `${c.result?.id}/${c.pass?.id}`, changed = key !== contextKey; contextKey = key;
     if (changed) { $('[data-empty-readouts]').hidden = true; options=null; f('inspection_backend').value = 'native'; showBackend(); $('[data-saved]').value = ''; $('[data-config]').open = false; $('[data-saved-status]').textContent = ''; editArtifact = null; artifact = null; $('[data-output]').replaceChildren(); $('[data-export]').disabled = true; f('source').value = 'draw_pair'; const modelId = c.result?.model?.model_id ?? ''; f('profile').value = PROFILES.find(p => p.model_id?.toLowerCase() === modelId.toLowerCase())?.id ?? 'local'; defaultLayers(); loadOptions(); saved().catch(e => { $('[data-saved-status]').textContent = e.message; }); }
-    const draws = lensDraws(c.record, c.position ?? 0); f('draw').replaceChildren(...(draws.length ? draws.map(d => new Option(`Draw ${d.draw_index + 1} · ${d.label} · checkpoint ${d.checkpoint}`, String(d.draw_index))) : [new Option('No saved continuations at this checkpoint', '')]));
-    fillPair(); updateVisibility(); updatePositionNote(true); if (!activeJob) status('Choose a lens and preview the exact token positions before running.');
+    const draws = lensDraws(c.record, c.position ?? 0); f('draw').replaceChildren(...(draws.length ? draws.map(d => new Option(`Continuation ${d.draw_index + 1} · ${d.label} · checkpoint ${d.checkpoint}`, String(d.draw_index))) : [new Option('No saved continuations at this checkpoint', '')]));
+    fillPair(); updateVisibility(); updatePositionNote(true);const draft=readDraft('lens');if(draft){for(const [k,v]of Object.entries(draft)){const input=f(k);if(input)input.value=v;}updateVisibility();updatePositionNote();} if (!activeJob) status('Choose a lens and preview the exact token positions before running.');
   }};
 }

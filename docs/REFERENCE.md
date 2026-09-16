@@ -4,6 +4,37 @@
 
 Commands below run from the repository root. The [main README](../README.md) contains installation and release status.
 
+<!-- generated: Codex — fork-microscope-revamp-ASTRA-BRIEF.md, canonical vocabulary. -->
+## Interface vocabulary
+
+| Name | Meaning |
+|---|---|
+| Investigation | A question and its connected responses, scans, comparisons and measurements. |
+| Prompt set | Reusable input configurations, not a backup of generated evidence. |
+| Response | One exact generated output token sequence selected for analysis. |
+| Outcome rule | A versioned matching rule, not automatically a correctness judgment. |
+| Scan | Collected checkpoint evidence along one fixed response. |
+| Pass | One independently configured checkpoint grid and fit within a scan. |
+| Checkpoint N | Keep the first N response tokens; sample the alternative at index N. |
+| Continuation | The forced branch token and newly generated suffix after a checkpoint. |
+| Samples per checkpoint | Total alternative continuations across retained branch tokens. |
+| Branch token | The next-token candidate forced before its sampled suffix. |
+| Continuation length limit | Maximum newly generated suffix tokens after the branch token. |
+| Observed proportion | Recorded matching outcomes divided by samples at that checkpoint. |
+| Fitted estimate | A reconstruction based on recorded observations and model assumptions. |
+| Candidate change interval | A region worth investigating, not a certified causal boundary. |
+| Refinement | Fresh observations at additional positions on the same exact response. |
+| Path comparison | Comparing two saved continuations. |
+| Scan comparison | Comparing recorded estimates from two compatible scans. |
+| Compute connection | Connection to the model-running worker service, not an AI agent. |
+| Inspection | A read-only internal measurement, such as a lens readout or capture. |
+| Intervention | A controlled edit or activation patch with recorded controls. |
+
+Tokens use zero-based response coordinates unless a control explicitly says prompt
+or absolute coordinates. Lens positions describe the state **after** the selected
+input token; a checkpoint describes a prefix of N tokens. These conventions differ
+by one at the boundary and must not be silently interchanged.
+
 ## What a data point means (schema 2)
 
 At checkpoint t, retain the prompt plus response tokens before t. Enumerate retained next-token branches using the recorded temperature-1 probabilities, top-k setting and minimum branch probability (the base token is always retained). Normalize over retained branches; omitted mass is excluded and saved for inspection.

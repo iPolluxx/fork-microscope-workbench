@@ -1,3 +1,4 @@
+<!-- generated: Codex — documentation updated for the investigation revamp, 2026-09-15; authorized by Isaiah. -->
 # Architecture
 
 [Documentation index](README.md)
@@ -20,6 +21,10 @@ Python modules below live in `src/fork_microscope/`. All tests live in `tests/`.
 | `nnsight_inspection.py`, `activation_patching.py` | Optional temporary NNsight capture over the attached model, and separate bounded native donor/recipient interventions with fresh controls. |
 | `run_comparison.py` | Check comparison eligibility and report distribution differences over supported positions. |
 | `workspace_store.py`, `evidence_io.py` | Saved prompt sets and validated evidence import/export. |
+| `investigation_workflow.py`, `investigation_catalog.py`, `investigation_records.py` | Shared investigation records, durable responses/search, operation coordination and budget reservations. |
+| `investigation_bundle.py` | Versioned portable bundles, integrity and provenance validation, safe conflict handling. |
+| `selection.mjs`, `investigation-shell.mjs`, `investigation-workbench.mjs` | Persistent selection, three-area navigation and interactive investigation workflow. |
+| `offline-evidence.mjs`, `evidence-import.mjs`, `classification.mjs` | Browser-only evidence storage/validation, explicit transfer and local outcome-rule preview. |
 | `vendor/forking-fast/` | Pinned, unmodified Goodfire implementation and released data. |
 | `fork_cli.py`, `scripts/`, `docker/` | Installation, command-line jobs, packaging and worker deployment. |
 
@@ -44,7 +49,7 @@ The hosted dashboard is static. Multiple visitors can use it while connecting di
 
 A worker is a **single-owner compute service**, with shared state for its attached model, jobs and files. It is not a multi-tenant backend with per-user accounts, independent authorization or isolated job storage. Giving several people the same worker token gives them access to that worker. One owner per worker is the supported deployment boundary.
 
-The application does not provision cloud hardware, handle provider billing, mount storage automatically or terminate rented machines. Model weights, credentials, run archives and generated validation outputs are excluded from Git. Ephemeral machines require exporting results before deletion.
+The application does not provision cloud hardware, handle provider billing, mount storage automatically or terminate rented machines. Model weights, credentials, arbitrary local run archives and generated validation outputs are excluded from Git. The curated attendance demo is the explicitly included saved-evidence exception. Ephemeral machines require exporting results before deletion.
 
 ## Reproducibility and limits
 
@@ -63,7 +68,17 @@ state and conservative reservations. A process restart marks running jobs
 interrupted for explicit recovery. `workflow_cli.py` is an authenticated HTTP
 client; `workflow-panel.mjs` uses the same endpoints.
 
-`investigation_bundle.py` packages and validates versioned JSON bundles. Import
+Version-2 workflow records extend the existing coordinator with context, responses,
+search attempts, manual operations and conclusions. Version-1 jobs remain readable;
+explicit upgrades preserve a backup. Stable browser request IDs survive uncertain
+retries. Manual recovery reconciles existing artifacts rather than silently
+repeating interrupted model calls.
+
+`investigation_bundle.py` packages and validates versioned JSON bundles. Version 3
+adds complete responses, edits, captures and investigation metadata; earlier bundle
+readers remain supported. The browser validates the same portable shape before
+IndexedDB storage. Safe annotation updates re-export a new integrity-checked bundle.
+Compute is blocked in saved-evidence mode until an explicit worker handoff. Import
 stages all artifacts, refuses conflicts, then installs immutable run/lens files.
 `investigation-bundles/` preserves imported handoff manifests. These private data
 folders are excluded from Git and Docker build contexts. This implementation
@@ -71,10 +86,12 @@ supports one worker process per data directory, not distributed scheduling.
 
 ### Shared navigation
 
-Every main page uses the same static header, styled by `app-navigation.css`.
-Workspace, Configure, Explore, Compare and Guide stay in that order; page-specific
-steps and tools sit below the global navigation. The logo always returns to
-Workspace. Navigation remains usable without JavaScript.
+Every main page uses the same static header plus the investigation shell.
+**Setup / Explore / Inspect & Test** are the primary working areas; Guide remains
+help and the logo returns to Workspace. Existing HTML URLs remain compatible.
+Typed selection state carries exact run/pass/checkpoint/continuation references
+through navigation and refresh. The outcome map stays mounted during inspection;
+response selection and advanced controls collapse independently.
 
 Edit `scripts/sync_navigation.py` for shared markup, then run
 `python3 scripts/sync_navigation.py`. Dashboard builds check that every page is

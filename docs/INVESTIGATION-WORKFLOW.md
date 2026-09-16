@@ -1,3 +1,4 @@
+<!-- generated: Codex — fork-microscope-revamp-ASTRA-BRIEF.md, Stage C workflow updates. -->
 # One investigation, from compute to Explorer
 
 [Documentation index](README.md)
@@ -9,6 +10,44 @@ the browser does not stop it. No cloud VM is provisioned or terminated by this A
 
 See the [investigation configuration reference](CONFIGURATION.md) for every field,
 allowed values, effects, budget arithmetic, and manual-operation alternatives.
+
+## Start in the browser
+
+The interface has three working areas: **Setup → Explore → Inspect & Test**.
+The header carries your investigation, model, compute state, budget and selected
+checkpoint. Inspecting saved evidence never starts a model.
+
+1. Open the example investigation, or import a complete investigation JSON bundle.
+   A static build opens the attendance example with three related scans and saved
+   Muse J-lens readouts. The example is existing model evidence, not a new run.
+2. In Setup, name your question, enter the prompt and outcome rules, and test those
+   rules on example text. Expand the input options for system/history messages.
+   A disconnected draft is local to your browser; saving a worker investigation
+   requires connected compute. Missing J-lens does not block scanning.
+3. In Explore, generate one response, search for a target within an attempt limit,
+   or select a saved response. Read its classification and completion status.
+   Searching can legitimately find nothing. Selected responses retain exact IDs.
+4. Scan the selected response: choose checkpoint spacing, samples per checkpoint,
+   and a continuation length limit. Refine a selected region if useful. More
+   samples improve an estimate; more checkpoints narrow its location.
+5. Compare continuations and carry a selected path or pair into Inspect & Test.
+   Existing lens, capture, edit and patch tools remain capability-gated. A change
+   in an outcome curve, a textual divergence and an internal measurement are
+   different observations; none alone establishes a causal decision point.
+6. Write a conclusion and export the complete investigation. New v3 archives
+   include responses, search history, comparisons, edits and captures as well as
+   runs, saved fits, lens readouts and patches. Incomplete operations cannot be
+   exported as complete evidence.
+
+Browser imports stay in IndexedDB on that **browser and website origin**. They
+are not an account, cloud sync or a backup. Keep the exported JSON; import it again
+on another device. Browser annotations produce a new bundle version without
+changing the stored model observations. **Use connected compute** leaves browsing
+mode; transfer the exported bundle to the chosen worker before running new work.
+Legacy standalone run files still use the worker importer; choose an investigation
+bundle for worker-free browsing. Old v1/v2 bundles remain supported by the worker.
+Historical checksums that predate browser-normalized numbers may require re-export
+from the original worker before browser import.
 
 ## Start with connected compute
 
@@ -22,7 +61,7 @@ Glimmer and requires substantial GPU memory; it is not a free CPU demo or a prov
 optimal configuration. Change the prompt, answers, scan region and budgets before
 running. `scan.end: null` scans to the end of the completed original response.
 A too-short or capped original response stops the pipeline with an explanation.
-Answer matching uses the existing `answer_text_anywhere_v1` rule: mentions may be
+This automatic CLI configuration uses the existing `answer_text_anywhere_v1` rule: mentions may be
 misclassified; multiple matches, unmatched and incomplete replies are Other.
 
 Supply the worker token through `FORK_WORKER_TOKEN` in your shell environment.
@@ -54,11 +93,10 @@ the same job. Reusing it with different settings is rejected. Use a new ID for a
 intentional new experiment. One investigation owns the worker until it finishes;
 manual model jobs are rejected during that period.
 
-In the dashboard's Configure page, open **Automate a complete investigation · advanced**, choose
+In the dashboard's Setup page, open **Automate a complete investigation · advanced**, choose
 the same configuration JSON, enter a request ID, review the summary and select
 **Start on connected compute**. The job controls show progress, cancellation,
-explicit resume, export, and an Explorer link. This first UI uses a configuration
-file; it does not yet provide a visual form for every policy setting.
+explicit resume, export, and an Explorer link. The advanced automatic route uses a configuration file; the standard manual route above uses forms. Not every adaptive-policy setting has a visual form.
 
 ## What adaptive means here
 
@@ -81,7 +119,7 @@ for a checkpoint with completed, classified continuations reaching different
 outcomes. It chooses the most balanced eligible checkpoint, breaks ties by token
 position, and selects the first contrasting pair in draw order. The inspection
 window surrounds that pair's first differing token, not necessarily its sampling
-checkpoint. Only one paired lens job is collected per investigation in v1.
+checkpoint. The automatic configuration pipeline collects at most one paired lens job; the interactive investigation can request additional bounded inspections.
 If no pair exists, lens inspection is explicitly skipped. A missing/incompatible
 lens yields an error with the already-collected runs retained for export.
 
@@ -129,13 +167,17 @@ The same file imports through Explorer's **Import run** button. The bundle conta
 all included runs, parent links, exact token IDs, raw continuations, classifications,
 fits, model and sampling provenance, selected readouts, and coordinator rationale
 when exported from a workflow job. Explorer keeps each run individually navigable.
-Family exports also include completed activation-patch experiments in a version-2
-bundle, with donor/recipient prefixes, controls and selection rationale. Version-1
-bundles remain readable. Partial patches remain standalone artifacts and are not
-included in a complete-evidence bundle. Manual patching is not an automatic
-coordinator step; export the run family after adding manual experiments.
-Viewing saved evidence requires a reachable local worker/storage server but **no
-GPU or loaded model**. Static hosted pages alone do not store imported evidence.
+Current v3 exports include completed activation patches, exact-prefix edits and
+activation captures, together with available response/search metadata. Existing
+v1/v2 files remain readable. Unfinished artifacts are rejected from complete
+exports with an error rather than silently omitted. Manual actions launched from
+a selected investigation use its coordinator and resource ledger. A legacy action
+without an investigation is labeled outside that ledger.
+
+Saved bundles can be imported and browsed entirely in the browser without a
+worker or GPU. New generation and internal measurements require compatible
+compute. New cross-run statistical comparison still uses the existing worker API;
+opening individual saved curves, continuations and readouts does not.
 
 Bundles are versioned JSON with SHA-256 integrity checking, limited to 64 MB.
 They contain no executable archive paths, model weights, caches or operational
@@ -153,6 +195,13 @@ Use one owner per worker; transport connects existing compute only.
 
 | Method | Route under `/api/live/` | Body / result |
 |---|---|---|
+| POST | `workflow-create` | `{request_id, context, limits}` → draft investigation |
+| POST | `workflow-update` | `{id, record_revision, conclusion?, selected_response_id?, comparison?, context?}` |
+| POST | `classifier-preview` | `{rule, text, complete}`; same classifier as execution |
+| POST | `workflow-search` | `{id, request_id, target, max_attempts, max_tokens, seed, temperature}` |
+| GET | `responses?investigation_id=ID` | saved response catalog |
+| GET | `response?id=ID` | exact IDs, raw text, classification and provenance |
+| POST | `workflow-operation` | `{id, request_id, action, payload}`; scan/refine/lens/investigate/patch |
 | POST | `workflow-start` | `{request_id, config}` → saved job |
 | GET | `workflows` | list jobs |
 | GET | `workflow?id=ID` | job and active worker progress |
@@ -189,3 +238,37 @@ hashing, so browser export/import preserves validity. Nonintegral values and
 large integers are not rounded. Untouched earlier v1 bundles remain accepted.
 If a bundle from an earlier browser download fails its checksum, re-export from
 the original worker; do not remove or manually replace the checksum.
+
+### Manual API contract and recovery
+
+`context` contains `name`, `question`, `input` and `outcome_rule`, with optional
+model identity. Input uses `schema: "fork-input-v1"`, `prompt`, `mode` (`chat` or
+`base`), and optional prior `messages` (`role`/`content`) in chat mode. The final
+prompt is appended after the prior messages. Model chat-template support is checked
+at execution; different templates can reject otherwise valid roles.
+
+An outcome rule uses `schema: "fork-outcome-rule-v1"`, `method: "text_match"` or
+`"final_marker"`, and `answers`. Final-marker rules also record `marker` (default
+`"Final answer:"`). Multiple competing matches, unfinished replies and unmatched
+responses are Other. Matching is not semantic judgment. Inspect the evidence text.
+
+A search with `target: null`, `max_attempts: 1`, `temperature: 0` generates one
+response. Targeted searches require positive temperature. Each attempt is persisted
+before the next; interruption inside upstream generation cannot recover a partial
+response that the model adapter has not returned.
+
+For a scan, use `action: "scan"` and
+`payload: {"response_id": "ID", "settings": {...}}`. Settings use the existing
+sampling contract in [Configuration](CONFIGURATION.md); checkpoint samples are
+**total samples across retained branches**, not samples for each branch.
+Other actions use their existing previewed request as payload. Reuse the same
+request ID only to retry identical settings. After an interrupted manual operation,
+inspect retained evidence before choosing a new operation ID; the coordinator does
+not silently regenerate potentially completed work. Reserved allowances stay charged.
+
+`limits` requires positive integer `max_seconds`, `max_samples` and
+`max_generated_tokens`; `max_attempts` is optional. Worst-case generated tokens and
+samples are reserved before operations. Lens replay is bounded by its selected
+positions, layers and runtime, and is not captured by a generated-token counter.
+Runtime cancellation is cooperative, including possible in-flight forward overruns.
+Estimated dollars are not a provider billing cap.

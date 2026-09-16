@@ -1,3 +1,4 @@
+<!-- generated: Codex — documentation updated for the investigation revamp, 2026-09-15; authorized by Isaiah. -->
 # Operating Fork Microscope from a fresh agent context
 
 Read [Investigation workflow](../INVESTIGATION-WORKFLOW.md) and the complete
@@ -41,6 +42,23 @@ For capture backend capabilities, controlled patch previews, and their scientifi
 limits, read [Internal inspection and controlled patches](../NNSIGHT-INTEGRATION.md).
 NNsight capture is optional exact-token replay on the existing worker; NDIF and vLLM
 are not connected by this integration.
+
+## Interactive investigations and portable handoff
+
+The dashboard uses Setup → Explore → Inspect & Test. For an interactive
+investigation, the authenticated `workflow-create`, `workflow-update`,
+`workflow-search` and `workflow-operation` API routes extend the existing
+coordinator; use the request shapes in the [workflow guide](../INVESTIGATION-WORKFLOW.md).
+The CLI configuration workflow remains supported and is not a command alias for
+every manual operation.
+
+Preserve `record_revision` for optimistic updates and reuse the same request ID
+after an uncertain response. Search targets and attempts are selection procedures,
+not unbiased prevalence estimates. Samples, generated-token allowances and time
+limits are enforced conservatively; dollar costs remain estimates. Export v3
+bundles for responses, comparisons, conclusions and collected artifacts. Browser
+import is offline: a later explicit transfer to compute is required before new
+worker operations, and conflicting IDs are not silently merged.
 
 ## Background connection and pairing
 

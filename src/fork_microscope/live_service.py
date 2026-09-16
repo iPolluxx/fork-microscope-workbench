@@ -1,3 +1,4 @@
+# generated: Codex — durable exact-token response selection extends the existing service.
 """One attached model, cancellable collection jobs, and auditable saved results."""
 from __future__ import annotations
 import gc
@@ -128,6 +129,7 @@ class LiveService:
         self.lock = threading.RLock()
         self.stop = threading.Event()
         self.model = self.base = self.question = None
+        self.response_id = None
         self.job = dict(status="idle", phase="Attach an open-weight model to begin.", completed=0, total=0)
         self.base_config = None
         self.lineage = None
@@ -161,7 +163,7 @@ class LiveService:
         return dict(question=self.question, text=self.model.decode(self.base.gen_ids),
             tokens=[self.model.tokenizer.decode([x]) for x in self.base.gen_ids],
             length=len(self.base.gen_ids), finish_reason=self.base.finish_reason,
-            config=self.base_config, readout=inspect_base(self.model,self.base,(self.question or {}).get('answers')),
+            config=self.base_config, readout=inspect_base(self.model,self.base,(self.question or {}).get('answers'), rule=(self.base_config or {}).get('outcome_rule')),
             top_token_probabilities=[float(np.exp(x[0])) for x in self.base.topk_logprobs])
 
     def progress(self, phase, completed=0, total=0):
@@ -184,7 +186,7 @@ class LiveService:
                 raise ValueError("An investigation owns this worker. Cancel or finish it before starting another model job.")
             if self.job["status"] == "running":
                 raise ValueError("A job is already running. Wait or stop it first.")
-            if action not in ("load", "base", "run", "unload", "refine", "batch", "investigate", "lens", "patch"):
+            if action not in ("load", "base", "run", "unload", "refine", "batch", "investigate", "lens", "patch", "select_response"):
                 raise ValueError("Unknown action.")
             # Validate synchronously before launching jobs.
             if action == "load":
@@ -201,7 +203,17 @@ class LiveService:
             elif action == "base":
                 if not self.model: raise ValueError("Attach a model first.")
                 if 'prompt' in payload:
-                    exact(payload, 'prompt answers mode max_tokens seed')
+                    extra = set(payload) & {'temperature','outcome_rule','messages'}
+                    exact(payload, 'prompt answers mode max_tokens seed' + ''.join(' ' + k for k in extra))
+                    if 'messages' in payload:
+                        from fork_microscope.investigation_records import validate_messages
+                        validate_messages(payload['messages'])
+                        if payload['mode'] != 'chat': raise ValueError('Conversation history requires chat mode.')
+                    if 'temperature' in payload: real(payload['temperature'], 'Temperature', 0, 2)
+                    if 'outcome_rule' in payload:
+                        from fork_microscope.investigation_records import validate_rule
+                        payload = dict(payload, outcome_rule=validate_rule(payload['outcome_rule']))
+                        if payload['outcome_rule']['answers'] != payload['answers']: raise ValueError('Outcome rules and answers differ.')
                     if not isinstance(payload['prompt'], str) or not 1 <= len(payload['prompt'].strip()) <= 16000:
                         raise ValueError('Enter a prompt (up to 16,000 characters).')
                     payload = dict(payload, answers=validate_answers(payload['answers']))
@@ -214,6 +226,12 @@ class LiveService:
                 if payload["mode"] not in ("chat", "base"): raise ValueError("Choose chat or base mode.")
                 integer(payload["max_tokens"], "Base cap", 8, 4096)
                 integer(payload["seed"], "Seed", 0, 2**31-1)
+            elif action == "select_response":
+                exact(payload, "response_id")
+                saved = self.response(payload["response_id"])
+                from fork_microscope.model_preflight import same_model_identity
+                if not self.model or not same_model_identity(self.model.info, saved["model"]):
+                    raise ValueError("Attach the exact response model and revision before scanning.")
             elif action == "lens":
                 payload = self.lens_plan(payload)
             elif action == "patch":
@@ -254,7 +272,7 @@ class LiveService:
                 if not inspected['can_load']:raise ValueError(' '.join(inspected['blockers']))
                 self.check()
             if action in ("unload", "load"):
-                self.base = self.question = self.base_config = self.lineage = None
+                self.base = self.question = self.base_config = self.lineage = self.response_id = None
                 self.model = None
                 gc.collect()
                 import torch
@@ -265,6 +283,8 @@ class LiveService:
                     self.model = AttachedModel(p["model_id"],p["revision"],p["device"],p["batch_size"],progress=self.progress,
                         activity=self.activity, check=self.check)
                     self.check()
+            elif action == "select_response":
+                self.select_response(p["response_id"])
             elif action == "lens":
                 self.execute_lens(p)
             elif action == "patch":
@@ -279,6 +299,7 @@ class LiveService:
                 from fork_microscope.replay_trace import replay_saved_trace
                 self.base=self.question=self.base_config=None
                 self.lineage=None
+                self.response_id=p.get('source_response_id')
                 base=replay_saved_trace(self.model,p['base'],p['model'],progress=self.progress)
                 self.check()
                 self.base=base;self.base_config=p['base_config']
@@ -439,15 +460,51 @@ class LiveService:
 
     def generate_base(self, p):
         self.lineage = None
+        self.response_id = None
         self.base = self.question = self.base_config = None
-        self.progress("Generating the greedy base response and recording next-token probabilities…")
-        ids = (self.model.prompt_text(p['prompt'], p['mode']) if 'prompt' in p
+        self.progress("Generating a response and recording next-token probabilities…")
+        if p.get('messages'):
+            if not self.model.tokenizer.chat_template: raise ValueError('The tokenizer has no chat template for conversation history.')
+            ids = list(self.model.tokenizer.apply_chat_template(p['messages'] + [{'role':'user','content':p['prompt']}], tokenize=True, add_generation_prompt=True, return_dict=False))
+        else:
+            ids = (self.model.prompt_text(p['prompt'], p['mode']) if 'prompt' in p
             else self.model.prompt(p["question"],p["choices"],p["mode"]))
         self.context_check(len(ids)+p['max_tokens'])
-        base=self.model.base_path(ids,p['max_tokens'],top_k=min(50,self.model.info['vocab_size']),seed=p['seed'])
+        base=self.model.base_path(ids,p['max_tokens'],top_k=min(50,self.model.info['vocab_size']),seed=p['seed'], **({'temperature': p['temperature']} if 'temperature' in p else {}))
+        from fork_microscope.investigation_records import make_response
+        response_id = self.job.get('id') or uuid.uuid4().hex
+        # Batch responses need their own identity; the batch job ID is shared.
+        if self.job.get('action') == 'batch': response_id = uuid.uuid4().hex
+        artifact = make_response(self.model, base, p, response_id, self.workflow_owner)
+        folder = RUNS.parent / 'responses'; folder.mkdir(parents=True, exist_ok=True)
+        self.save(folder / (response_id + '.json'), artifact)
+        self.response_id = response_id
+        self.job['response_id'] = response_id
         self.check()
-        if len(base.gen_ids)<2: raise ValueError('The model produced fewer than two response tokens. Try another prompt.')
-        self.base,self.question,self.base_config=base,(dict(question=p['prompt'],answers=p['answers'],matching='answer_text_anywhere_v1') if 'prompt' in p else dict(question=p['question'],choices=p['choices'])),p
+        self.base,self.question,self.base_config=base,(dict(question=p['prompt'],answers=p['answers'],matching=p.get('outcome_rule',{}).get('method','answer_text_anywhere_v1')) if 'prompt' in p else dict(question=p['question'],choices=p['choices'])),p
+
+    def response(self, response_id):
+        from fork_microscope.investigation_bundle import identifier
+        from fork_microscope.investigation_records import validate_response
+        path = RUNS.parent / 'responses' / (identifier(response_id) + '.json')
+        if not path.exists(): raise ValueError('Saved response is unavailable on this worker.')
+        return validate_response(json.loads(path.read_text()))
+
+    def responses(self, investigation_id=None):
+        values = []
+        for path in (RUNS.parent / 'responses').glob('*.json'):
+            value = self.response(path.stem)
+            if investigation_id is None or value.get('investigation_id') == investigation_id: values.append(value)
+        return sorted(values, key=lambda x: x['created'])
+
+    def select_response(self, response_id):
+        from fork_microscope.replay_trace import replay_saved_trace
+        saved = self.response(response_id)
+        self.base = replay_saved_trace(self.model, saved['base'], saved['model'], progress=self.progress)
+        self.base_config = saved['config']
+        self.question = dict(question=self.base_config.get('prompt', self.base_config.get('question', '')),
+            answers=self.base_config.get('answers'), matching=(saved.get('outcome_rule') or {}).get('method', 'unknown'))
+        self.response_id = response_id; self.lineage = None
 
     def execute_batch(self, batch):
         from fork_microscope.workspace_store import scan_config
@@ -551,7 +608,7 @@ class LiveService:
         records,curves,phase_costs = {},{},{}
         done=0; total=estimate['total_rollouts']; collection_started=time.time()
         with self.lock: self.job.update(collection_started=collection_started, generated_tokens=0)
-        metadata = dict(lineage=self.lineage,id=run_id,schema_version=2,sampling_design='position_mixture_v1',model=self.model.info,
+        metadata = dict(source_response_id=self.response_id,outcome_rule=(self.base_config or {}).get('outcome_rule'),lineage=self.lineage,id=run_id,schema_version=2,sampling_design='position_mixture_v1',model=self.model.info,
             settings=c,base_config=self.base_config,estimate=estimate,created=time.time(),
             upstream_commit='d32fed8d4162a4888291c4b3a38b059727c85a41',
             generation_defaults=self.model.model.generation_config.to_dict(),
@@ -580,7 +637,7 @@ class LiveService:
                     seed=int(np.random.SeedSequence([p['seed'],phase_i,t,branch.tok_id,202]).generate_state(1)[0])
                     continuations=self.model.draw_branch(branch,len(indices),c['cont_max'],c['temperature'],seed,self.check)
                     if len(continuations)!=len(indices): raise RuntimeError('Model returned an incorrect draw count.')
-                    observations=[inspect_continuation(self.model,self.base,branch,cont,c['cont_max'],self.question.get('answers')) for cont in continuations]
+                    observations=[inspect_continuation(self.model,self.base,branch,cont,c['cont_max'],self.question.get('answers'), rule=(self.base_config or {}).get('outcome_rule')) for cont in continuations]
                     generated+=sum(map(len,continuations))
                     record['branches'].append(dict(t=t,tok_id=branch.tok_id,tok_p=branch.tok_p,is_base=branch.is_base,
                         answers=[o['label'] for o in observations],draw_indices=indices,cont_lens=list(map(len,continuations)),
@@ -650,7 +707,7 @@ class LiveService:
     def import_result(self, value):
         from fork_microscope.evidence_io import import_export
         with self.lock:
-            if isinstance(value, dict) and value.get('schema') in ('fork-investigation-bundle-v1','fork-investigation-bundle-v2'):
+            if isinstance(value, dict) and value.get('schema') in ('fork-investigation-bundle-v1','fork-investigation-bundle-v2','fork-investigation-bundle-v3'):
                 from fork_microscope.investigation_bundle import import_bundle
                 return import_bundle(value, RUNS)
             return import_export(value, RUNS)

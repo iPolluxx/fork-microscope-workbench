@@ -1,3 +1,4 @@
+<!-- generated: Codex — documentation updated for the investigation revamp, 2026-09-15; authorized by Isaiah. -->
 # Hosted dashboard, personal compute
 
 [Documentation index](README.md)
@@ -14,11 +15,24 @@ python3 scripts/build_dashboard.py
 
 The build also creates `dist/fork-dashboard.zip` containing the same explicit assets.
 
-Publish **only `dist/dashboard/`** to your static HTTPS host. Its index is the Workspace. This build uses an explicit asset list: model weights, personal run records, prompt sets, environment files and credentials are excluded. Keep the dashboard and worker on the same release; protocol compatibility across future versions is not promised.
+Publish **only `dist/dashboard/`** to your static HTTPS host. Its index opens the curated attendance demo in Explore, without contacting a worker. This build uses an explicit asset list: the demo is intentionally included; model weights, other local run records, prompt sets, environment files and credentials are excluded. Keep the dashboard and worker on the same release; protocol compatibility across future versions is not promised.
 
 For GCP, this folder is the frontend deployment artifact. A static host or a web-server container behind HTTPS can serve it; cloud deployment is separate from the GPU worker. This change does not provision GCP infrastructure or guarantee a free bill. Check the chosen service's current storage, request and egress terms before publishing. Do not deploy the inference worker as a shared public API.
 
 For the prepared Google Cloud Run deployment, see [the static deployment guide](../deploy/cloud-run/README.md). It builds a small web-only image; the GPU worker Dockerfile is not used.
+
+## Browse saved evidence without compute
+
+Import a complete investigation bundle in Explore. The browser validates and stores
+it in IndexedDB under the dashboard origin. Refreshes and new tabs can reopen it;
+a different browser, phone or domain does not automatically inherit that storage.
+Saved text, curves, comparisons and collected readouts need no GPU. Notes can be
+saved and exported. Keep the exported file as a backup.
+
+A compute connection does not silently upload browser evidence. Choose **Transfer
+to connected compute** when ready to continue the investigation on your worker.
+Conflicting IDs are rejected while retaining the browser copy. New generation,
+refinement and internal measurement require a compatible worker and explicit action.
 
 ## Connect a local computer
 

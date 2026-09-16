@@ -1,7 +1,9 @@
+# generated: Codex — versioned portable investigation evidence, v1/v2 compatible.
 """Portable JSON investigations: data only, validated before installation."""
 import copy
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -11,10 +13,11 @@ from fork_microscope.evidence_io import RUN_ID, MAX_IMPORT_BYTES, validate_expor
 
 SCHEMA = 'fork-investigation-bundle-v1'
 PATCH_SCHEMA = 'fork-investigation-bundle-v2'
+V3_SCHEMA = 'fork-investigation-bundle-v3'
 # Only operational metadata is removed. Prompt/continuation text is evidence and
 # must never be silently rewritten. Authors should review it before sharing.
 PRIVATE_KEYS = {'token','access_token','api_key','authorization','password','worker_url',
-                'hub_cache','cache_dir','checkpoint_path','local_path','path','weights_path','worker_job','error'}
+                'machine_id','compute_binding','hub_cache','cache_dir','checkpoint_path','local_path','path','weights_path','worker_job','error'}
 
 def portable(value):
     if isinstance(value, list): return [portable(x) for x in value]
@@ -51,7 +54,9 @@ def identifier(value):
     if not isinstance(value,str) or not RUN_ID.fullmatch(value): raise ValueError('Invalid artifact ID.')
     return value
 
-def build_bundle(runs, lenses=(), investigation=None, patches=()):
+def build_bundle(runs, lenses=(), investigation=None, patches=(), responses=(), edits=(), captures=()):
+    if (investigation or {}).get("schema") == "fork-workflow-v2" or responses or edits or captures:
+        return build_bundle_v3(runs, lenses, investigation, patches, responses, edits, captures)
     job = {k:v for k,v in (investigation or {}).items() if k in {'id','schema','status','config','created','runs','lenses','steps','reservations','elapsed_seconds'}}
     payload = portable(dict(runs=list(runs), lenses=list(lenses), investigation=job))
     patches = list(patches)
@@ -169,6 +174,8 @@ def validate_patch(patch, runs):
     if summary.get('counts')!=counts or summary.get('identity_control')!=dict(draws_compared=q['samples'],exact_matches=matches,passed=matches==q['samples']) or summary.get('capped')!=sum(o['stop_reason']=='length' for o in observations):raise ValueError('Patch summary differs from its observations.')
 
 def validate_bundle(value):
+    if isinstance(value, dict) and value.get("schema") == V3_SCHEMA:
+        return validate_bundle_v3(value)
     try:
         if set(value)!={'schema','manifest','payload','sha256'} or value['schema'] not in (SCHEMA,PATCH_SCHEMA):raise ValueError('Unsupported investigation bundle.')
         if len(canonical(value))>MAX_IMPORT_BYTES:raise ValueError('Investigation bundle exceeds 64 MB.')
@@ -240,7 +247,14 @@ def export_family(service, run_id):
             archived=json.loads(path.read_text())
             if root in archived.get('manifest',{}).get('run_ids',[]):
                 investigation=archived['payload']['investigation'];break
-    return build_bundle(runs,lenses,investigation,patches)
+    artifacts=[service.investigation(l['id']) for l in service.investigations()
+        if l.get('schema')=='fork-investigation-v1' and (l.get('request') or {}).get('source_run_id') in selected]
+    edits=[x for x in artifacts if x['request']['kind']=='edit'];captures=[x for x in artifacts if x['request']['kind']=='activation']
+    response_ids=list(dict.fromkeys(list(investigation.get('responses',[]))+[r['source_response_id'] for r in runs if r.get('source_response_id')]))
+    responses=[service.response(i) for i in response_ids]
+    if investigation.get('schema')=='fork-workflow-v2' and set(investigation['runs']) != selected:
+        return manager.export(investigation['id']) if manager else build_bundle(runs,lenses,investigation,patches,responses,edits,captures)
+    return build_bundle(runs,lenses,investigation,patches,responses,edits,captures)
 
 def import_bundle(value, runs):
     validate_bundle(value);runs=Path(runs);root=runs.parent
@@ -258,13 +272,28 @@ def import_bundle(value, runs):
                 if portable(existing)!=r:raise ValueError('Conflicting existing run ID; nothing replaced.')
             else:
                 import_export(r,stage/'live-runs');planned.append((stage/'live-runs'/r['id'],dest))
-        for lens in value['payload']['lenses'] + value['payload'].get('patches',[]):
+        for lens in value['payload']['lenses'] + value['payload'].get('patches',[]) + value['payload'].get('edits',[]) + value['payload'].get('captures',[]):
             dest=root/'investigations'/(lens['id']+'.json')
             if dest.is_symlink():raise ValueError('Refusing a symlinked inspection destination.')
             if dest.exists():
                 if portable(json.loads(dest.read_text()))!=lens:raise ValueError('Conflicting inspection artifact ID; nothing replaced.')
             else:
                 src=stage/(lens['id']+'.json');src.write_bytes(canonical(lens));planned.append((src,dest))
+        for response in value['payload'].get('responses', []):
+            dest=root/'responses'/(response['id']+'.json')
+            if dest.is_symlink(): raise ValueError('Refusing a symlinked response destination.')
+            if dest.exists():
+                if portable(json.loads(dest.read_text())) != response: raise ValueError('Conflicting response ID; nothing replaced.')
+            else:
+                src=stage/('response-'+response['id']+'.json');src.write_bytes(canonical(response));planned.append((src,dest))
+        if value['schema'] == V3_SCHEMA:
+            record=value['payload']['investigation']
+            dest=root/'workflow-jobs'/(record['id']+'.json')
+            if dest.is_symlink(): raise ValueError('Refusing a symlinked investigation destination.')
+            if dest.exists():
+                if portable(json.loads(dest.read_text())) != record: raise ValueError('Conflicting investigation ID; nothing replaced.')
+            else:
+                src=stage/'workflow.json';src.write_bytes(canonical(record));planned.append((src,dest))
         archive=root/'investigation-bundles'/(value['sha256']+'.json')
         src=stage/'bundle.json';src.write_bytes(canonical(value))
         if not archive.exists():planned.append((src,archive))
@@ -275,3 +304,161 @@ def import_bundle(value, runs):
     return dict(id=value['manifest']['entry_run_id'],run_ids=value['manifest']['run_ids'],
                 lens_ids=value['manifest']['lens_ids'],patch_ids=value['manifest'].get('patch_ids',[]),
                 already_present=not planned,bundle_sha256=value['sha256'])
+
+
+def build_bundle_v3(runs, lenses=(), investigation=None, patches=(), responses=(), edits=(), captures=()):
+    from fork_microscope.investigation_records import adapt_workflow
+    collections = dict(runs=list(runs), lenses=list(lenses), patches=list(patches), responses=list(responses), edits=list(edits), captures=list(captures))
+    job = copy.deepcopy(investigation or {})
+    if not job:
+        root_ids = sorted(x['id'] for x in collections['runs'] if not (x.get('lineage') or {}).get('source_run_id'))
+        job = dict(id=digest({'family':root_ids})[:32], schema='fork-workflow-v2', status='idle', config=None, created=None,
+                   runs=[x['id'] for x in collections['runs']], lenses=[x['id'] for x in collections['lenses']], steps=[],
+                   reservations={'samples':None,'generated_tokens':None}, elapsed_seconds=None)
+    job = adapt_workflow(job);job['schema']='fork-workflow-v2'
+    for kind in collections:
+        present = [x['id'] for x in collections[kind]]
+        missing = set(job.get(kind,[])) - set(present)
+        if missing:raise ValueError('Cannot export: missing '+kind+' '+', '.join(sorted(missing)))
+        job[kind] = present
+    # Live process details and operation requests are not execution authority on import.
+    job.pop('worker_job',None)
+    if job.get('pending') or job.get('status') == 'running':
+        raise ValueError('Cannot export an unfinished operation; completed evidence remains saved locally.')
+    payload = portable(dict(collections, investigation=job))
+    manifest = {{'lenses':'lens_ids','patches':'patch_ids'}.get(kind,kind[:-1]+'_ids'):[x['id'] for x in payload[kind]] for kind in collections}
+    manifest.update(entry_run_id=job['runs'][-1] if job['runs'] else None, entry_response_id=job.get('selected_response_id'), minimum_reader_version=3,
+                    note='Checksums verify file consistency, not scientific truth. Stored fits are not recomputed.')
+    value = dict(schema=V3_SCHEMA, manifest=manifest, payload=payload, sha256=digest(payload))
+    validate_bundle_v3(value)
+    return value
+
+
+def validate_basic_artifact(value, runs, kind):
+    from fork_microscope.investigation_records import exact_hash
+    if not isinstance(value,dict) or value.get('schema') != 'fork-investigation-v1' or value.get('status') != 'complete':
+        raise ValueError('Only complete edit and capture artifacts can be exported; unfinished items remain local.')
+    identifier(value.get('id'));q=value.get('request',{})
+    if q.get('kind') != kind:raise ValueError('Artifact kind mismatch.')
+    fields={'source_run_id','source_pass_id','kind'} | ({'positions','layers'} if kind=='activation' else {'start','end','replacement','samples','cont_max','temperature','seed'})
+    if 'source_selection' in q: fields.add('source_selection')
+    if set(q)!=fields:raise ValueError('Invalid edit/capture request fields.')
+    run=runs.get(q.get('source_run_id'));record=(run or {}).get('records',{}).get(q.get('source_pass_id'))
+    if record is None:raise ValueError('Edit/capture source run or pass is missing.')
+    base=record['base']
+    if q.get('source_selection'):
+        choice=q['source_selection']
+        if choice.get('schema') != 'fork-trajectory-v1' or choice.get('type') != 'draw' or set(choice)!={'schema','type','checkpoint','draw_index'}:raise ValueError('Invalid trajectory selector.')
+        matches=[base['gen_ids'][:b['t']]+[b['tok_id']]+b['continuation_ids'][i] for b in record['branches'] if b['t']==choice['checkpoint'] for i,d in enumerate(b.get('draw_indices',[])) if d==choice['draw_index']]
+        if len(matches)!=1:raise ValueError('Selected source continuation is missing.')
+        base=dict(base,gen_ids=matches[0])
+    if any(value.get('model',{}).get(k)!=run['model'].get(k) for k in ('model_id','resolved_revision')):raise ValueError('Edit/capture model mismatch.')
+    if any(value.get('source_base',{}).get(k)!=base[k] for k in ('prompt_ids','gen_ids')):raise ValueError('Edit/capture token source mismatch.')
+    if value.get('source_ids_sha256')!=exact_hash({k:base[k] for k in ('prompt_ids','gen_ids')}):raise ValueError('Edit/capture source checksum mismatch.')
+    vocab=run['model'].get('vocab_size',2**31)
+    def tokens(ids):return isinstance(ids,list) and all(type(x) is int and 0<=x<vocab for x in ids)
+    if kind=='activation':
+        positions=q.get('positions',[]);layers=q.get('layers',[])
+        if not positions or not layers or len(positions)>16 or len(layers)>4 or len(set(positions))!=len(positions) or len(set(layers))!=len(layers):raise ValueError('Invalid capture selection.')
+        if any(type(x) is not int or not 0<=x<=len(base['gen_ids']) for x in positions) or any(type(x) is not int or x<0 for x in layers):raise ValueError('Invalid capture coordinates.')
+        rows=value.get('captures');expected={(p,l) for p in positions for l in layers}
+        if not isinstance(rows,list) or len(rows)!=len(expected):raise ValueError('Incomplete capture rows.')
+        seen=set()
+        for row in rows:
+            key=(row['checkpoint'],row['layer']);prefix=base['prompt_ids']+base['gen_ids'][:row['checkpoint']]
+            if key not in expected or key in seen:raise ValueError('Duplicate or out-of-scope capture row.')
+            seen.add(key)
+            if row.get('prefix_ids')!=prefix or row.get('prefix_sha256')!=exact_hash(prefix) or row.get('absolute_position')!=len(prefix)-1:raise ValueError('Capture prefix provenance mismatch.')
+            vector=row.get('vector')
+            if not isinstance(vector,list) or not vector or any(type(x) not in (int,float) for x in vector):raise ValueError('Invalid capture vector.')
+            if type(row.get('norm')) not in (int,float) or not math.isclose(row['norm'],math.sqrt(sum(x*x for x in vector)),rel_tol=1e-4,abs_tol=1e-6):raise ValueError('Capture norm differs from its vector.')
+    else:
+        start,end=q.get('start'),q.get('end')
+        if type(start) is not int or type(end) is not int or not 0<=start<end<=len(base['gen_ids']):raise ValueError('Invalid edit span.')
+        replacement=value.get('replacement_ids')
+        if not tokens(replacement):raise ValueError('Invalid replacement token IDs.')
+        arms={'control':base['gen_ids'][:end],'edit':base['gen_ids'][:start]+replacement}
+        if value.get('arms')!=arms:raise ValueError('Edit prefix provenance mismatch.')
+        samples,cap=q.get('samples'),q.get('cont_max')
+        if type(samples) is not int or not 2<=samples<=128 or type(cap) is not int or not 1<=cap<=4096:raise ValueError('Invalid edit bounds.')
+        if type(q.get('seed')) is not int or not 0<=q['seed']<=2**31-1 or type(q.get('temperature')) not in (int,float) or not .05<=q['temperature']<=2:raise ValueError('Invalid edit sampling settings.')
+        if not isinstance(q.get('replacement'),str) or len(q['replacement'])>16000:raise ValueError('Invalid edit replacement text.')
+        observations=value.get('observations')
+        if not isinstance(observations,list) or len(observations)!=samples*2:raise ValueError('Incomplete edit observations.')
+        seen=set()
+        for row in observations:
+            key=(row.get('arm'),row.get('draw'))
+            if key[0] not in arms or type(key[1]) is not int or not 0<=key[1]<samples or key in seen:raise ValueError('Invalid edit observation coordinates.')
+            seen.add(key)
+            if not tokens(row.get('continuation_ids')) or len(row['continuation_ids'])>cap:raise ValueError('Invalid edit continuation tokens.')
+            expected_seed=(q['seed']+2*key[1]+(1 if key[0]=='edit' else 0))%(2**31-1)
+            if row.get('seed')!=expected_seed or row.get('stop_reason') not in ('eos','length'):raise ValueError('Invalid edit seed or finish status.')
+            if row.get('label') not in (run.get('base_config',{}).get('answers') or ['A','B','C','D'])+['Other']:raise ValueError('Unknown edit outcome.')
+
+
+def validate_bundle_v3(value):
+    try:
+        if set(value)!={'schema','manifest','payload','sha256'}:raise ValueError('Malformed v3 bundle envelope.')
+        if len(canonical(value))>MAX_IMPORT_BYTES:raise ValueError('Complete investigation export exceeds 64 MiB; no evidence was omitted.')
+        p=value['payload'];m=value['manifest'];kinds=('runs','lenses','patches','responses','edits','captures')
+        if set(p)!=set(kinds)|{'investigation'} or digest(p)!=value['sha256']:raise ValueError('Invalid v3 payload or checksum.')
+        if portable(p)!=p:raise ValueError('Bundle contains private operational metadata.')
+        if any(not isinstance(p[k],list) or len(p[k])>100 for k in kinds):raise ValueError('Invalid v3 artifact counts.')
+        all_ids=[]
+        for k in kinds:
+            ids=[identifier(x['id']) for x in p[k]];all_ids.extend(ids)
+            key={'lenses':'lens_ids','patches':'patch_ids'}.get(k,k[:-1]+'_ids')
+            if m.get(key)!=ids:raise ValueError('Artifact manifest mismatch for '+k)
+        if len(set(all_ids))!=len(all_ids):raise ValueError('Duplicate artifact IDs across kinds.')
+        runs={r['id']:r for r in p['runs']}
+        if runs:
+            # Apply the unchanged v1/v2 run, lineage, lens, and patch validators.
+            old=build_bundle(p['runs'],p['lenses'],patches=p['patches'])
+            if m.get('entry_run_id') not in runs:raise ValueError('Missing entry scan.')
+        elif p['lenses'] or p['patches'] or p['edits'] or p['captures'] or m.get('entry_run_id') is not None:
+            raise ValueError('Inspections require their source scans.')
+        from fork_microscope.investigation_records import validate_response, validate_context
+        responses={r['id']:validate_response(r) for r in p['responses']}
+        for kind,name in [('edit','edits'),('activation','captures')]:
+            for artifact in p[name]:validate_basic_artifact(artifact,runs,kind)
+        job=p['investigation']
+        if not isinstance(job,dict) or job.get('schema')!='fork-workflow-v2':raise ValueError('v3 requires a workflow v2 record.')
+        identifier(job.get('id'))
+        if job.get('context',{}).get('provenance')!='legacy_inferred':validate_context(job.get('context'))
+        for k in kinds:
+            if job.get(k)!=[x['id'] for x in p[k]]:raise ValueError('Investigation index differs from bundled '+k)
+        if job.get('selected_response_id') is not None and job['selected_response_id'] not in responses:raise ValueError('Missing selected response.')
+        if m.get('entry_response_id')!=job.get('selected_response_id'):raise ValueError('Entry response mismatch.')
+        for search in job.get('searches',[]):
+            if any(i not in responses for i in search['response_ids']):raise ValueError('Search response is missing.')
+        from fork_microscope.investigation_catalog import InvestigationCatalog
+        for comparison in job.get('comparisons',[]):InvestigationCatalog.validate_comparison(comparison,runs)
+        edits={x['id']:x for x in p['edits']}
+        for lens in p['lenses']:
+            q=lens['request'];selection=q.get('selection',{})
+            base=runs[q['source_run_id']]['records'][q['source_pass_id']]['base']
+            for arm in lens['arms']:
+                if selection.get('type')=='original' and arm.get('response_ids')!=base['gen_ids']:raise ValueError('Lens original response differs from its source.')
+                if selection.get('type')=='edit_pair':
+                    edit=edits.get(selection.get('investigation_id'))
+                    if not edit or edit['request']['source_run_id']!=q['source_run_id'] or edit['request']['source_pass_id']!=q['source_pass_id']:raise ValueError('Lens source edit is missing or incompatible.')
+                    if arm.get('response_ids')!=edit['arms'].get(arm['id']):raise ValueError('Lens edited prefix differs from its source.')
+                if selection.get('type')=='draw_pair':
+                    draw=arm.get('source_draw',{})
+                    if draw.get('checkpoint')!=selection.get('checkpoint') or draw.get('draw_index') not in selection.get('draw_indices',[]):raise ValueError('Lens draw differs from its requested selection.')
+                expected=(arm['prompt_ids']+arm['response_ids'])[:(len(arm['prompt_ids']) if q['space']=='response' else 0)+q['end']+1]
+                if arm['input_ids']!=expected:raise ValueError('Lens replay prefix does not match its requested endpoint.')
+        for run in runs.values():
+            parent=(run.get('lineage') or {}).get('source_run_id')
+            if parent and any(run['model'].get(k)!=runs[parent]['model'].get(k) for k in ('model_id','resolved_revision')):raise ValueError('Refinement model differs from its parent.')
+            rid=run.get('source_response_id')
+            if rid:
+                if rid not in responses:raise ValueError('Source response is missing.')
+                response=responses[rid]
+                if any(response['model'].get(k)!=run['model'].get(k) for k in ('model_id','resolved_revision')):raise ValueError('Response/run model mismatch.')
+                for pass_entry in run['passes']:
+                    record=run['records'][pass_entry['id']]
+                    if any(record['base'][k]!=response['base'][k] for k in ('prompt_ids','gen_ids')):raise ValueError('Scan differs from exact source response tokens.')
+    except (KeyError,TypeError,IndexError,AttributeError,RecursionError) as exc:
+        raise ValueError('Malformed v3 investigation bundle.') from exc
+    return value

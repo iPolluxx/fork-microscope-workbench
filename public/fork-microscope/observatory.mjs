@@ -1,3 +1,6 @@
+// generated: Codex, fork-microscope-revamp-ASTRA-BRIEF.md — selection travels across working areas.
+import {updateInvestigationContext,contextNotice} from './investigation-shell.mjs';
+import {getSelection,setSelection,selectionURL,subscribeSelection,validateSelection,saveDraft,readDraft} from './selection.mjs';
 import {saveJSON} from './download.mjs';
 import {mountRefinement} from './refinement-panel.mjs';
 import {mountPatching} from './patching-panel.mjs';
@@ -10,7 +13,7 @@ const $=id=>document.getElementById(id);
 let result=null,passes=[],pass=null,record=null,evidence=null,index=0,drawIndex=0,view='reply',revision=0;
 const refinementHost=$('refinement-host');
 const refinement=mountRefinement(refinementHost,()=>({result,pass,record,evidence}));
-const investigation=mountInvestigation($('investigation-host'),()=>({result,pass,record,position:evidence?.observed[index]?.t}));
+const investigation=mountInvestigation($('investigation-host'),()=>({result,pass,record,position:evidence?.observed[index]?.t,continuation:getSelection().continuation}));
 const lens=mountLens($('lens-host'),()=>({result,pass,record,position:evidence?.observed[index]?.t,
   selectCheckpoint(t){const next=evidence?.observed.findIndex(p=>p.t===t)??-1;if(next<0)return false;showCheckpoint(next);return true;}}));
 const patching=mountPatching($('patching-host'),()=>({result,pass,record,position:evidence?.observed[index]?.t,selectedPair:pairSelection}));
@@ -61,7 +64,7 @@ function showStage(next,focus=true){
     if(button.dataset.stageTarget===stage)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');
   }
   const [step,title,description]=stageCopy[stage];$('stage-number').textContent='EXPLORE SAVED EVIDENCE';$('stage-title').textContent=title;$('stage-description').textContent=description;
-  const url=new URL(location.href);url.hash=stage;history.replaceState(null,'',url);
+  const responses=document.querySelector('[data-response-disclosure]');if(responses&&stage==='inspect')responses.open=false;const url=new URL(location.href);url.hash=stage;history.replaceState(null,'',url);setSelection({area:stage==='inspect'?'inspect':'explore'});
   if(focus)$('stage-title').focus();
 }
 function inspectRegion(left,right){
@@ -72,8 +75,8 @@ function inspectRegion(left,right){
 }
 function renderPair(reset=false){
   const checkpoint=evidence.observed[index].t,rows=completedDraws(record,checkpoint);
-  const pair=outcomePair(rows,...(reset?[]:pairSelection));pairSelection=pair.map(o=>o.draw_index);
-  const option=o=>new Option(`Draw ${o.draw_index+1} · ${o.label}`,String(o.draw_index));
+  const pair=outcomePair(rows,...(reset?[]:pairSelection));pairSelection=pair.map(o=>o.draw_index);setSelection({pair:pairSelection.length===2?{draw_indices:pairSelection}:null});
+  const option=o=>new Option(`Continuation ${o.draw_index+1} · ${o.label}`,String(o.draw_index));
   $('path-a').replaceChildren(...rows.map(option));$('path-b').replaceChildren(...rows.filter(o=>o.label!==pair[0]?.label).map(option));
   $('path-comparison').hidden=!pair.length;$('pair-view').disabled=!pair.length;$('inspect-pair').disabled=!pair.length;
   const pairs=contrastingPairs(rows),pairIndex=pairs.findIndex(p=>p.includes(pairSelection[0])&&p.includes(pairSelection[1]));
@@ -83,7 +86,7 @@ function renderPair(reset=false){
   $('compare-checkpoint').textContent=`Compare paths at token ${checkpoint} →`;
   if(!pair.length){
     const all=draws(),labels=new Set(rows.map(o=>o.label));
-    $('pair-status').textContent=labels.size===1?`At token ${checkpoint}, every eligible completed continuation has the same recorded outcome: ${rows[0].label}. Choose another checkpoint to compare outcomes, or inspect the original response. All ${all.length} saved draws remain available below.`:`No completed, classified pair with exact saved token IDs is available at token ${checkpoint}. Choose another checkpoint, inspect the original response, or open the saved draws below. Token-capped and Other records are not treated as different decisions.`;
+    $('pair-status').textContent=labels.size===1?`At token ${checkpoint}, every eligible completed continuation has the same recorded outcome: ${rows[0].label}. Choose another checkpoint to compare outcomes, or inspect the original response. All ${all.length} saved continuations remain available below.`:`No completed, classified pair with exact saved token IDs is available at token ${checkpoint}. Choose another checkpoint, inspect the original response, or open the saved continuations below. Token-capped and Other records are not treated as different decisions.`;
     return;
   }
   const focus=pairFocus(pair,checkpoint);
@@ -111,33 +114,33 @@ function tokens(){return result.base?.tokens??record.base?.token_texts??[];}
 function draws(){const t=evidence.observed[index].t;return (record.branches??[]).filter(b=>b.t===t).flatMap(b=>(b.observations??[]).map((o,i)=>({...o,branch_token:b.tok_id,draw_index:b.draw_indices?.[i]??i}))).sort((a,b)=>a.draw_index-b.draw_index);}
 const isFinished=o=>Boolean(o.stop_reason)&&o.stop_reason!=='length';
 function filteredDraws(){const outcome=$('filter-outcome').value,completion=$('filter-completion').value;return draws().filter(o=>(!outcome||o.label===outcome)&&(!completion||(completion==='finished'?isFinished(o):completion==='length'?o.stop_reason==='length':!o.stop_reason)));}
-function refreshDrawList(){const list=filteredDraws();$('draw').replaceChildren(...list.map((o,i)=>new Option(`Draw ${o.draw_index+1} · ${o.label}`,String(i))));if(!list.length)$('draw').add(new Option('No matching draws',''));$('draw').disabled=!list.length;renderDraw();}
-function openRefinement(left,right){showStage('scan',false);$('refinement-disclosure').open=true;if(left!==undefined)refinement.select(left,right);$('refinement-disclosure').scrollIntoView({block:'nearest'});}
+function refreshDrawList(){const list=filteredDraws();$('draw').replaceChildren(...list.map((o,i)=>new Option(`Continuation ${o.draw_index+1} · ${o.label}`,String(i))));if(!list.length)$('draw').add(new Option('No matching continuations',''));$('draw').disabled=!list.length;renderDraw();}
+function openRefinement(left,right){if(left===undefined&&getSelection().token_region){left=getSelection().token_region.start;right=getSelection().token_region.end_exclusive-1;}showStage('scan',false);$('refinement-disclosure').open=true;if(left!==undefined){refinement.select(left,right);setSelection({token_region:{space:'response',start:left,end_exclusive:right+1}});}$('refinement-disclosure').scrollIntoView({block:'nearest'});}
 function summarizeRun(){
   const all=(record.branches??[]).flatMap(b=>b.observations??[]),caps=all.filter(o=>o.stop_reason==='length').length,finished=all.filter(isFinished).length;
-  const data=[['Checkpoints',evidence.observed.length,'Original token positions'],['Recorded draws',all.length,'Fresh continuations'],['Finished',finished,`${all.length?Math.round(100*finished/all.length):0}% of recorded draws`],['Reached token cap',caps,'Inspect separately from decisions']];
+  const data=[['Checkpoints',evidence.observed.length,'Original token positions'],['Recorded continuations',all.length,'Fresh continuations'],['Finished',finished,`${all.length?Math.round(100*finished/all.length):0}% of recorded continuations`],['Reached token cap',caps,'Inspect separately from decisions']];
   $('run-facts').replaceChildren(...data.map(([label,value,note])=>{const el=node('div','','summary-card');el.append(node('span',label),node('strong',String(value)),node('small',note));return el;}));
   $('outcome-totals').replaceChildren(...result.categories.map((label,k)=>{const n=all.filter(o=>o.label===label).length,el=node('button','','outcome-chip');el.style.setProperty('--category-color',['#a5d7ef','#c6b7f0','#e1bd85','#9edac1','#ecabbc'][k%5]);el.append(node('span',label),node('strong',String(n)));el.title='Show '+label+' on the outcome map';el.setAttribute('aria-pressed',String($('outcome').value===label));el.onclick=()=>{$('outcome').value=label;drawChart();updateFacts();updateOutcomeSelection();};return el;}));
 }
 function updateOutcomeSelection(){[...$('outcome-totals').children].forEach((b,i)=>b.setAttribute('aria-pressed',String(result.categories[i]===$('outcome').value)));}
 async function load(id){
-  const openingUrl=new URL(location.href),restore=openingUrl.searchParams.get('run')===id;
+  const openingSelection=structuredClone(getSelection()),openingUrl=new URL(location.href),restore=openingUrl.searchParams.get('run')===id;
   const current=++revision;$('evidence').hidden=true;$('error').hidden=true;$('loading').hidden=false;$('download').hidden=true;
   const loaded=await api('export?id='+encodeURIComponent(id));if(current!==revision)return;
-  if(!loaded.base||!Array.isArray(loaded.categories)||!loaded.records)throw new Error('This file does not contain the saved trace and observation records.');
-  result=loaded;window.setForkMethodCredit?.(result);passes=resultPasses(result);if(!passes.length)throw new Error('No completed checkpoint passes in this run.');
+  if(!loaded.base||!Array.isArray(loaded.categories)||!loaded.records)throw new Error('This file does not contain the saved response and observation records.');
+  result=loaded;const responses=document.querySelector('[data-response-disclosure]');if(responses)responses.open=false;setSelection({run_id:id});updateInvestigationContext({model:result.model?.model_id});window.setForkMethodCredit?.(result);passes=resultPasses(result);if(!passes.length)throw new Error('No completed checkpoint passes in this run.');if(restore){const checked=validateSelection(openingSelection,result,passes);if(checked.reason)contextNotice(checked.reason);}
   $('import-provenance').hidden=!result.records['import-info'];$('import-provenance').textContent=result.records['import-info']?'Imported evidence · saved fit not recomputed locally.':'';
   $('runs').value=id;renderRunChain(id);$('model-name').textContent=result.model.model_id;
   const prompt=result.base.question?.question??result.base_config?.prompt??'Prompt not recorded';$('prompt-text').textContent=prompt;$('prompt-preview').textContent=prompt;
-  $('technical').href='/live.html?run='+encodeURIComponent(id);$('download').href='#';$('download').onclick=async event=>{event.preventDefault();try{await saveJSON($('download'),'fork-run-'+id+'.json',()=>api('export?id='+encodeURIComponent(id)));}catch(e){showError(e);}};$('download').download='fork-run-'+id+'.json';$('download').hidden=false;
-  $('new-run').href='/live.html?view=setup';
+  $('technical').href=selectionURL({...getSelection(),run_id:id,return_area:stage==='inspect'?'inspect':'explore'},'setup',location.href);$('download').href='#';$('download').onclick=async event=>{event.preventDefault();try{await saveJSON($('download'),'fork-run-'+id+'.json',()=>api('export?id='+encodeURIComponent(id)));}catch(e){showError(e);}};$('download').download='fork-run-'+id+'.json';$('download').hidden=false;
+  $('new-run').href=selectionURL(getSelection(),'setup',location.href);$('new-run').textContent='Investigation setup ↗';
   $('outcome').replaceChildren(...result.categories.map(c=>new Option(c,c)));$('outcome').selectedIndex=suggestedOutcome(passes,result.categories.length);
   $('filter-outcome').replaceChildren(new Option('All outcomes',''),...result.categories.map(c=>new Option(c,c)));$('filter-completion').value='';
   $('pass').replaceChildren(...passes.map(p=>new Option(p.label??p.id,p.id)));
   $('provenance').textContent=`Saved run ${result.id} · revision ${(result.model.resolved_revision??result.model.requested_revision??'unrecorded').slice(0,12)}`;
   const parentId=result.lineage?.source_run_id??result.records['replay-verification']?.source_run_id;
   if(parentId){const a=node('a','View parent run →');a.href='/observatory.html?run='+encodeURIComponent(parentId);$('provenance').prepend(a,node('span',' · '));}
-  const initialStage=restore?openingUrl.hash.slice(1):'scan';const requestedPass=restore?openingUrl.searchParams.get('pass'):null;history.replaceState(null,'','?run='+encodeURIComponent(id));choosePass(passes.find(p=>p.id===requestedPass)?.id??passes[0].id);if(restore&&openingUrl.searchParams.has('checkpoint')){const savedIndex=evidence.observed.findIndex(p=>p.t===Number(openingUrl.searchParams.get('checkpoint')));if(savedIndex>=0)showCheckpoint(savedIndex);}$('loading').hidden=true;$('evidence').hidden=false;showStage(initialStage==='lens-host'?'inspect':initialStage,false);
+  const initialStage=restore?(openingUrl.searchParams.get('area')==='inspect'?'inspect':openingUrl.hash.slice(1)):'scan';const requestedPass=restore?openingUrl.searchParams.get('pass'):null;if(requestedPass&&!passes.some(p=>p.id===requestedPass))contextNotice('The requested pass is unavailable. Showing this scan’s first available pass.');choosePass(passes.find(p=>p.id===requestedPass)?.id??passes[0].id);if(restore&&openingUrl.searchParams.has('checkpoint')){const savedIndex=evidence.observed.findIndex(p=>p.t===Number(openingUrl.searchParams.get('checkpoint')));if(savedIndex>=0)showCheckpoint(savedIndex);else contextNotice('The requested checkpoint is unavailable. Showing the first measured checkpoint in this pass.');}$('loading').hidden=true;$('evidence').hidden=false;if(restore&&openingUrl.searchParams.has('pair')){pairSelection=openingUrl.searchParams.get('pair').split(',').map(Number);renderPair();if(pairSelection.length===2)lens.usePair(pairSelection);}const savedDraw=openingUrl.searchParams.get('draw');if(restore&&savedDraw!==null){const d=draws().find(d=>d.draw_index===Number(savedDraw));if(d){setSelection({continuation:{run_id:id,pass_id:pass.id,checkpoint:evidence.observed[index].t,draw_index:d.draw_index}});lens.useDraw(d.draw_index);}}if(restore&&openingSelection.run_id===id){setSelection({token_region:openingSelection.token_region,layers:openingSelection.layers});lens.restoreSettings(openingSelection);}showStage(initialStage==='lens-host'?'inspect':initialStage,false);
 }
 function choosePass(id){
   pass=passes.find(p=>p.id===id);$('pass').value=id;record=result.records[pass.id];if(!record)throw new Error('This pass has no saved observation record.');
@@ -175,7 +178,7 @@ function drawChart(){
 }
 function showCheckpoint(next){
   index=Math.max(0,Math.min(evidence.observed.length-1,next));drawIndex=0;
-  const url=new URL(location.href);url.searchParams.set('pass',pass.id);url.searchParams.set('checkpoint',evidence.observed[index].t);history.replaceState(null,'',url);
+  setSelection({run_id:result.id,pass_id:pass.id,checkpoint:evidence.observed[index].t});
   const p=evidence.observed[index],source=tokens(),end=Math.min(p.t+32,source.length);
   const promptButton=node('button','Original prompt','text-button');promptButton.onclick=()=>{$('saved-prompt').open=true;$('saved-prompt').scrollIntoView({block:'nearest'});};const library=node('a',`Run ${result.id.slice(0,8)}`);library.href='#library';$('selection-context').replaceChildren(promptButton,node('span','›'),library,node('span',`› ${pass.label??pass.id} › Token ${p.t}`));$('map-selection').textContent=`${pass.label??pass.id} · Token ${p.t}`;
   $('position').textContent=p.t;$('page-number').textContent=`${String(index+1).padStart(2,'0')} / ${String(evidence.observed.length).padStart(2,'0')}`;
@@ -184,10 +187,10 @@ function showCheckpoint(next){
   $('anchor-text').textContent=source.slice(p.t,end).join('');
   $('original-suffix').textContent=source.slice(p.t).join('');
   $('prefix-history').textContent=source.slice(0,p.t).join('')||'No original response tokens precede this checkpoint.';
-  $('span-label').textContent=`Original tokens ${p.t}–${end-1} · ${source.length} tokens in the full trace`;
+  $('span-label').textContent=`Original tokens ${p.t}–${end-1} · ${source.length} tokens in the full response`;
   for(const b of $('checkpoint-pages').children)b.setAttribute('aria-pressed',String(Number(b.dataset.index)===index));
   for(const c of $('observations').children)c.classList.toggle('active',Number(c.dataset.index)===index);
-  $('replacement').value=draftEdits.get(key())??source.slice(p.t,end).join('');
+  $('replacement').value=readDraft('replacement')??draftEdits.get(key())??source.slice(p.t,end).join('');
   $('draft-boundary').textContent=`Source token span [${p.t}, ${end}). Preserve ${p.t} response tokens before it. The replacement has not been tokenized.`;
   $('draft-status').textContent='Draft only. Tokenization, a connected worker, and fresh control/edit continuations are required before execution.';
   updateFacts();refreshDrawList();renderPair(true);investigation.refresh();lens.refresh();patching.refresh();
@@ -204,12 +207,12 @@ function renderDraw(){
   $('draw').value=String(drawIndex);$('draw-prev').disabled=!list.length||drawIndex===0;$('draw-next').disabled=!list.length||drawIndex>=list.length-1;
   $('recorded-view').hidden=view==='edit';$('draft-view').hidden=view!=='edit';
   for(const b of document.querySelectorAll('[data-view]'))b.setAttribute('aria-pressed',String(b.dataset.view===view));
-  $('draw-meta').textContent=o?`${o.label} · ${o.generated_tokens} new tokens · ${o.stop_reason==='length'?'Token cap reached':isFinished(o)?'Finished':'Completion not recorded'} · branch ${o.branch_token}`:all.length?'No draws match these filters at this checkpoint.':'This historical record contains no saved continuation text.';
+  $('draw-meta').textContent=o?`${o.label} · ${o.generated_tokens} new tokens · ${o.stop_reason==='length'?'Token cap reached':isFinished(o)?'Finished':'Completion not recorded'} · branch ${o.branch_token}`:all.length?'No continuations match these filters at this checkpoint.':'This historical record contains no saved continuation text.';
   $('draw-meta').classList.toggle('capped',o?.stop_reason==='length');
   $('view-note').textContent=view==='reply'?'Reply text extracted by the saved readout rule.':view==='continuation'?'Newly generated text after the forced branch token.':'Full saved response: earlier source prefix, forced branch token, and generated continuation.';
   const text=o?.[view==='reply'?'reply_text':view==='continuation'?'continuation_text':'full_response_text'];
-  $('reply').textContent=text??(list.length?'No text recorded for this view.':'Choose another checkpoint or clear the filters to see recorded text.');$('reply').scrollTop=0;
-  $('filter-summary').textContent=`${list.length} of ${all.length} draws at token ${evidence.observed[index].t}`;$('reset-filters').hidden=!$('filter-outcome').value&&!$('filter-completion').value;$('copy-reply').disabled=view==='edit'||!text;$('reader-status').textContent='';
+  $('reply').textContent=text??(list.length?'No text recorded for this view.':all.length?'No continuations match these filters. Clear the filters to see recorded text.':'No continuation text was saved at this checkpoint. Token IDs and outcome counts may still be available in the exported evidence.');$('reply').scrollTop=0;
+  $('filter-summary').textContent=`${list.length} of ${all.length} continuations at token ${evidence.observed[index].t}`;$('reset-filters').hidden=!$('filter-outcome').value&&!$('filter-completion').value;$('copy-reply').disabled=view==='edit'||!text;$('reader-status').textContent='';
 }
 function exportDraft(){
   const p=evidence.observed[index],end=Math.min(p.t+32,tokens().length),replacement=$('replacement').value;
@@ -244,8 +247,22 @@ $('copy-reply').onclick=async()=>{try{await navigator.clipboard.writeText($('rep
 $('back-to-records').onclick=()=>{view='reply';renderDraw();};
 $('retry').onclick=()=>location.reload();
 for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>{view=b.dataset.view;renderDraw();};
-$('edit-here').onclick=()=>{view='edit';renderDraw();$('replacement').focus();};$('replacement').oninput=()=>{draftEdits.set(key(),$('replacement').value);$('draft-status').textContent='Local draft changed. Download it to preserve this version; no inference is running.';};$('save-draft').onclick=exportDraft;
+$('edit-here').onclick=()=>{view='edit';renderDraw();$('replacement').focus();};$('replacement').oninput=()=>{draftEdits.set(key(),$('replacement').value);saveDraft('replacement',$('replacement').value);$('draft-status').textContent='Local draft changed. Download it to preserve this version; no inference is running.';};$('save-draft').onclick=exportDraft;
 motion();
-try{const runs=await api('runs');runCatalog=runs;renderRunCatalog();if(!runs.length)throw new Error('No completed runs were found on the selected worker. Check the evidence source in the top bar, connect the worker holding your runs, or import an evidence file.');const requested=new URLSearchParams(location.search).get('run');await load(requested||runs[0].id);}catch(e){showError(e);$('model-name').textContent='Saved evidence unavailable';}
+try{const runs=await api('runs');runCatalog=runs;renderRunCatalog();if(!runs.length&&getSelection().investigation_id){$('loading').hidden=true;$('model-name').textContent='Choose or generate a response above.';}else if(!runs.length)throw new Error('No completed runs were found on the selected worker. Check the evidence source in the top bar, connect the worker holding your runs, or import an evidence file.');const requested=new URLSearchParams(location.search).get('run');if(runs.length&&(requested||!getSelection().investigation_id))await load(requested||runs[0].id);else if(!requested){$('loading').hidden=true;$('evidence').hidden=true;$('model-name').textContent='Choose or generate a response above.';};}catch(e){showError(e);$('model-name').textContent='Saved evidence unavailable';}
 
 addEventListener('worker-connection-change', () => location.reload());
+
+$('inspect-continuation').onclick=()=>{const draw=filteredDraws()[drawIndex];if(!draw)return;setSelection({continuation:{run_id:result.id,pass_id:pass.id,checkpoint:evidence.observed[index].t,draw_index:draw.draw_index},pair:null});lens.useDraw(draw.draw_index);showStage('inspect');};
+$('edit-continuation').onclick=()=>{const draw=filteredDraws()[drawIndex];if(!draw)return;setSelection({continuation:{run_id:result.id,pass_id:pass.id,checkpoint:evidence.observed[index].t,draw_index:draw.draw_index},pair:null});investigation.refresh();showStage('inspect');$('investigation-host').closest('details').open=true;};
+let restoring=false;
+subscribeSelection(async(s,options)=>{if(!options.restored||restoring)return;restoring=true;try{if(s.run_id&&s.run_id!==result?.id)await load(s.run_id);else if(result){if(s.pass_id&&s.pass_id!==pass?.id)choosePass(s.pass_id);if(s.checkpoint!==null){const i=evidence.observed.findIndex(p=>p.t===s.checkpoint);if(i>=0)showCheckpoint(i);}if(s.pair){pairSelection=s.pair.draw_indices;renderPair();lens.usePair(pairSelection);}if(s.continuation)lens.useDraw(s.continuation.draw_index);showStage(s.area==='inspect'?'inspect':location.hash==='#compare'?'compare':'scan',false);}}catch(e){contextNotice(e.message);}finally{restoring=false;}});
+let dragStart=null;
+function graphToken(event){const rect=$('chart').getBoundingClientRect(),x=(event.clientX-rect.left)/rect.width*1040;const a=evidence.observed[0].t,b=evidence.observed.at(-1).t;return Math.max(a,Math.min(b,Math.round(a+(x-60)/950*(b-a))));}
+$('chart').addEventListener('pointerdown',event=>{if(!evidence||event.target.closest('[role="button"]'))return;dragStart=graphToken(event);$('chart').setPointerCapture(event.pointerId);});
+$('chart').addEventListener('pointerup',event=>{if(dragStart===null)return;const end=graphToken(event),start=Math.min(dragStart,end),last=Math.max(dragStart,end);dragStart=null;if(start===last)return;setSelection({token_region:{space:'response',start,end_exclusive:last+1}});$('point-readout').textContent=`Selected response tokens ${start}–${last}. Refine this region to add measurements.`;refinement.select(start,last);$('open-refinement').textContent=`Refine tokens ${start}–${last} ↓`;});
+if(new URLSearchParams(location.search).has('demo')){const card=node('section','','investigation-card');card.append(node('h2','A recorded attendance decision'),node('p','This example compares Plan A and Plan B using saved evidence. No model is connected and opening it spends no compute.'),node('p','1. Click a checkpoint on the outcome map. 2. Compare its continuations. 3. Open Inspect & Test to browse saved J-lens readouts. Proportions describe the recorded samples, not proof of a causal decision point.'));$('workspace').prepend(card);}
+
+$('save-comparison').onclick=async()=>{if(pairSelection.length!==2)return;const comparison={id:crypto.randomUUID().replaceAll('-',''),run_id:result.id,pass_id:pass.id,checkpoint:evidence.observed[index].t,draw_indices:[...pairSelection],rationale:$('comparison-rationale').value};try{await new Promise((resolve,reject)=>window.dispatchEvent(new CustomEvent('fork-save-comparison',{detail:{comparison,resolve,reject}})));$('comparison-save-status').textContent='Comparison saved with its exact continuation references.';}catch(e){$('comparison-save-status').textContent=e.message;}};
+
+window.addEventListener('fork-open-scan',async event=>{if(!event.detail.id){$('evidence').hidden=true;$('loading').hidden=true;$('error').hidden=true;return;}try{runCatalog=await api('runs');renderRunCatalog();await load(event.detail.id);}catch(e){showError(e);}});

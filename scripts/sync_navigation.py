@@ -1,3 +1,4 @@
+# generated: Codex, fork-microscope-revamp-ASTRA-BRIEF.md — shared three-area navigation.
 """Keep every checked-in page on the same static, no-JavaScript navigation.
 
 Run this after changing the shell. --check is used by builds and tests to reject
@@ -8,12 +9,11 @@ import argparse
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGES = {'workspace.html': 'Workspace', 'live.html': 'Configure',
-         'observatory.html': 'Explore', 'compare.html': 'Compare',
+PAGES = {'workspace.html': 'Setup', 'live.html': 'Setup',
+         'observatory.html': 'Explore', 'compare.html': 'Explore',
          'guide.html': 'Guide', 'released-data.html': 'Explore'}
-LINKS = [('Workspace', '/workspace.html'), ('Configure', '/live.html'),
-         ('Explore', '/observatory.html'), ('Compare', '/compare.html'),
-         ('Guide', '/guide.html')]
+LINKS = [('Setup', '/live.html'), ('Explore', '/observatory.html'),
+         ('Inspect & Test', '/observatory.html#inspect'), ('Guide', '/guide.html')]
 PATTERN = re.compile(r'<!-- APP_NAVIGATION_START -->.*?<!-- APP_NAVIGATION_END -->', re.S)
 
 
@@ -22,7 +22,8 @@ def navigation(page):
     for label, href in LINKS:
         current = ' aria-current="page"' if PAGES[page] == label else ''
         hook = ' id="observatory-link"' if page == 'live.html' and label == 'Explore' else ''
-        links.append(f'<a href="{href}"{current}{hook}>{label}</a>')
+        display = label.replace('&', '&amp;')
+        links.append(f'<a href="{href}"{current}{hook}>{display}</a>')
     return ('<!-- APP_NAVIGATION_START -->\n'
             '<header class="app-shell"><div class="app-shell-inner">'
             '<a class="app-brand" href="/workspace.html" aria-label="Fork microscope · Workspace">'

@@ -27,6 +27,16 @@ def source(adapter, result, request):
     if record is None or request['source_pass_id'] not in [p['id'] for p in result['passes']]:
         raise ValueError('Choose a saved source pass.')
     base = record['base']
+    if request.get('source_selection'):
+        choice = request['source_selection']
+        if not isinstance(choice, dict) or set(choice) != {'schema','type','checkpoint','draw_index'} or choice['schema'] != 'fork-trajectory-v1' or choice['type'] != 'draw':
+            raise ValueError('Invalid continuation trajectory selector.')
+        if any(type(choice[k]) is not int or choice[k] < 0 for k in ('checkpoint','draw_index')): raise ValueError('Invalid continuation coordinates.')
+        matches = [base['gen_ids'][:b['t']] + [b['tok_id']] + b['continuation_ids'][i]
+            for b in record['branches'] if b['t'] == choice['checkpoint']
+            for i, draw in enumerate(b.get('draw_indices', [])) if draw == choice['draw_index']]
+        if len(matches) != 1: raise ValueError('Selected continuation is missing or ambiguous.')
+        base = dict(base, gen_ids=matches[0], base_text=adapter.decode(matches[0]))
     for ids in (base['prompt_ids'], base['gen_ids']):
         if not ids or any(type(i) is not int or not 0 <= i < adapter.info['vocab_size'] for i in ids):
             raise ValueError('Saved token IDs are empty or outside the model vocabulary.')
@@ -54,6 +64,7 @@ def capture_sites(adapter):
 
 def build_plan(adapter, result, request):
     common = {'source_run_id', 'source_pass_id', 'kind'}
+    if isinstance(request, dict) and 'source_selection' in request: common.add('source_selection')
     extra = {'edit': {'start', 'end', 'replacement', 'samples', 'cont_max', 'temperature', 'seed'},
              'activation': {'positions', 'layers'}}
     if type(request) is not dict or request.get('kind') not in extra or set(request) != common | extra[request['kind']]:
@@ -62,6 +73,7 @@ def build_plan(adapter, result, request):
         raise ValueError('Source run mismatch.')
     base = source(adapter, result, request)
     plan = dict(schema='fork-investigation-v1', request=dict(request), model=dict(adapter.info),
+                outcome_rule=result.get('base_config', {}).get('outcome_rule'),
                 source_base={'prompt_ids':list(base['prompt_ids']), 'gen_ids':list(base['gen_ids']), 'base_text':base['base_text']},
                 generation_defaults=adapter.model.generation_config.to_dict(),
                 attention_implementation=getattr(adapter.model.config, '_attn_implementation', None),
@@ -111,12 +123,16 @@ def build_plan(adapter, result, request):
     return plan
 
 
-def inspect_generated(adapter, response_prefix, continuation, cap, answers):
+def inspect_generated(adapter, response_prefix, continuation, cap, answers, rule=None):
     raw = adapter.tokenizer.decode(response_prefix + continuation, skip_special_tokens=False)
     complete = len(continuation) < cap  # upstream strips EOS; exact EOS-at-cap is conservatively unresolved
     reply = completed_reply(raw, getattr(adapter, 'is_muse', False)) if complete else None
     matches = match_answer_text(reply, answers) if reply is not None and answers is not None else []
     label = (matches[0] if len(matches) == 1 else None) if answers is not None else (parse_mmlu_answer(reply) if reply is not None else None)
+    if rule is not None:
+        from fork_microscope.investigation_records import classify
+        classification = classify(rule, raw, complete, getattr(adapter, 'is_muse', False))
+        label=classification['label'];matches=classification['matched_answers']
     return dict(label=label or 'Other', matched_answers=matches, reply_text=reply,
                 stop_reason='eos' if complete else 'length', stop_reason_evidence='inferred_from_stripped_length',
                 continuation_ids=continuation, continuation_text=adapter.tokenizer.decode(continuation, skip_special_tokens=False),
@@ -137,7 +153,7 @@ def run_edit(adapter, base, answers, plan, check, progress, save):
             sampled, seconds = adapter.resample([prefix], n=1, max_tokens=q['cont_max'], temperature=q['temperature'], seed=seed)
             if len(sampled) != 1 or len(sampled[0]) != 1:
                 raise ValueError('Model returned an unexpected continuation count.')
-            observation = inspect_generated(adapter, plan['arms'][arm], sampled[0][0], q['cont_max'], answers)
+            observation = inspect_generated(adapter, plan['arms'][arm], sampled[0][0], q['cont_max'], answers, rule=plan.get('outcome_rule'))
             out['observations'].append(dict(observation, arm=arm, draw=draw, seed=seed, wall_seconds=seconds))
             save(out)
     out.update(status='complete', finished=time.time())

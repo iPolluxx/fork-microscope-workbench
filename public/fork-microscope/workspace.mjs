@@ -1,3 +1,4 @@
+// generated: Codex, fork-microscope-revamp-ASTRA-BRIEF.md — approved UI glossary.
 // Saved prompt sets live on the selected worker. Browser edits are unsaved until POST succeeds.
 export const DEFAULT_SCAN = Object.freeze({stride:32,samples:20,cont_max:768,temperature:1,top_k:10,threshold:.05,seed:0,tuning:'cv'});
 const isInt=(value,min,max)=>Number.isInteger(value)&&value>=min&&value<=max;
@@ -21,7 +22,7 @@ export function validatePromptSet(set){
   return '';
 }
 export function validateScan(scan){
-  for(const [key,label,min,max] of [['stride','Checkpoint spacing',1,128],['samples','Draws per checkpoint',5,512],['cont_max','Continuation cap',1,4096],['top_k','Top-k candidates',1,50],['seed','Scan seed',0,2147483647]])if(!isInt(scan?.[key],min,max))return `${label} must be a whole number from ${min.toLocaleString()} to ${max.toLocaleString()}.`;
+  for(const [key,label,min,max] of [['stride','Checkpoint spacing',1,128],['samples','Samples per checkpoint',5,512],['cont_max','Continuation cap',1,4096],['top_k','Top-k candidates',1,50],['seed','Scan seed',0,2147483647]])if(!isInt(scan?.[key],min,max))return `${label} must be a whole number from ${min.toLocaleString()} to ${max.toLocaleString()}.`;
   if(!isReal(scan.temperature,.05,2))return 'Continuation temperature must be between 0.05 and 2.';
   if(!isReal(scan.threshold,0,1))return 'Minimum branch probability must be between 0 and 1.';
   if(!['cv','fixed'].includes(scan.tuning))return 'Choose cross-validation or fixed reconstruction tuning.';
@@ -128,9 +129,9 @@ function bootstrap(){
     for(const button of $('set-list').querySelectorAll('button'))button.disabled=writePending;
     for(const link of document.querySelectorAll('.configure-prompt')){if(saved&&!changed&&!writePending){link.href='/live.html?set='+encodeURIComponent(current.id)+'&prompt='+encodeURIComponent(link.dataset.promptId);link.removeAttribute('aria-disabled');link.textContent='Open in Configure ↗';}else{link.removeAttribute('href');link.setAttribute('aria-disabled','true');link.textContent='Save set to open in Configure';}}
     const reason=batchReadiness({connected,model:status?.model,job:status?.job,saved,dirty:changed,selectedCount:count,pending:writePending,scanIssue:issue});
-    $('start-batch').disabled=Boolean(reason);$('start-batch').title=reason||'Generate and scan the selected prompts';$('batch-readiness').textContent=reason||`${count} ${count===1?'prompt':'prompts'} ready. The worker will generate a separate trace for each.`;$('scan-fields').disabled=writePending;
+    $('start-batch').disabled=Boolean(reason);$('start-batch').title=reason||'Generate and scan the selected prompts';$('batch-readiness').textContent=reason||`${count} ${count===1?'prompt':'prompts'} ready. The worker will generate a separate response for each.`;$('scan-fields').disabled=writePending;
     const budget=upperBound(selectedPrompts(),scan());
-    $('batch-budget').textContent=!count?'Select prompts to estimate the maximum continuation allowance.':!budget?issue||'Enter valid original-response caps to estimate the allowance.':`At the selected original-response caps: at most ${fmt(budget.checkpoints)} checkpoint visits × ${fmt(scan().samples)} draws = ${fmt(budget.draws)} continuations, up to ${fmt(budget.new_tokens)} new continuation tokens. Actual traces may be shorter. This excludes original-response generation and prefix processing; it is not a time or cost estimate.`;
+    $('batch-budget').textContent=!count?'Select prompts to estimate the maximum continuation allowance.':!budget?issue||'Enter valid original-response caps to estimate the allowance.':`At the selected original-response caps: at most ${fmt(budget.checkpoints)} checkpoint visits × ${fmt(scan().samples)} samples = ${fmt(budget.draws)} continuations, up to ${fmt(budget.new_tokens)} new continuation tokens. Actual responses may be shorter. This excludes original-response generation and prefix processing; it is not a time or cost estimate.`;
   }
   const needsConnection=()=>window.workerConnection?.().url===null;
   function renderWorker(){
@@ -181,7 +182,7 @@ function bootstrap(){
       const items=Array.isArray(batch.items)?batch.items:[],complete=items.filter(item=>['complete','completed'].includes(item.state)).length,terminal=items.filter(item=>['complete','completed','error','failed','cancelled','interrupted'].includes(item.state)).length;
       card.append(text('p',`${complete}/${items.length} prompts completed · ${terminal}/${items.length} finished or stopped`,'help'));
       const progress=document.createElement('progress');progress.max=Math.max(1,items.length);progress.value=terminal;progress.setAttribute('aria-label',`${terminal} of ${items.length} batch items finished or stopped`);card.append(progress);
-      const policy=batch.scan||{};card.append(text('p',`Saved scan snapshot · spacing ${policy.stride??'—'} · ${policy.samples??'—'} draws/checkpoint · continuation cap ${policy.cont_max??'—'} · temperature ${policy.temperature??'—'} · seed ${policy.seed??'—'}`,'batch-scan'));
+      const policy=batch.scan||{};card.append(text('p',`Saved scan snapshot · spacing ${policy.stride??'—'} · ${policy.samples??'—'} samples/checkpoint · continuation cap ${policy.cont_max??'—'} · temperature ${policy.temperature??'—'} · seed ${policy.seed??'—'}`,'batch-scan'));
       if(batch.error)card.append(text('p',String(batch.error),'notice error'));
       const list=document.createElement('ul');list.className='batch-items';for(const item of items){const li=document.createElement('li');const title=text('div',item.title||'Untitled prompt','batch-item-title');if(item.error)title.append(text('small',String(item.error)));if(item.run_id&&item.state!=='complete')title.append(text('small','Run assigned; a completed result is not available. Any partial records remain on the worker.'));li.append(title,text('span',item.state||'pending','status-pill '+(item.state||'pending')));if(item.run_id&&item.state==='complete'){const links=document.createElement('div');links.className='batch-item-links';const explore=text('a','Explore run ↗');explore.href='/observatory.html?run='+encodeURIComponent(item.run_id);const compare=text('a','Compare ↗');compare.href='/compare.html?left='+encodeURIComponent(item.run_id);links.append(explore,compare);li.append(links);}list.append(li);}card.append(list);return card;
     }));

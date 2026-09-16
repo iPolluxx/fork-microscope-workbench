@@ -1,14 +1,19 @@
+// generated: Codex, fork-microscope-revamp-ASTRA-BRIEF.md — shared operation accounting.
+import {startEvidenceOperation,budgetScopeNote} from './scoped-operation.mjs';
+// generated: Codex, fork-microscope-revamp-ASTRA-BRIEF.md — exact selected continuation edit source.
+import {getSelection,saveDraft,readDraft} from './selection.mjs';
+import {lensDraws} from './lens-panel.mjs';
 // generated: Codex — explicit preview, execution and saved investigation inspection.
 export function mountInvestigation(host, context) {
-  host.innerHTML = `<h2>Investigate this region</h2>
+  host.innerHTML = `<h2>Test this explanation</h2><p data-source-note class="micro"></p>
     <p>Locate a candidate on the outcome map, inspect its text, then test a specific edit or collect internal vectors. These are separate experiments from the original scan.</p>
     <div class="investigation-controls">
       <label>Instrument<select data-field="kind"><option value="edit">Edit versus fresh control</option><option value="activation">Read-only activation capture · experimental</option></select></label>
       <div data-edit class="investigation-controls">
         <label>Start token<input data-field="start" type="number" min="0"></label>
         <label>End token (excluded)<input data-field="end" type="number" min="1"></label>
-        <label>Draws per arm<input data-field="samples" type="number" min="2" max="128" value="10"></label>
-        <label>New tokens per draw, maximum<input data-field="cont_max" type="number" min="1" max="4096" value="512"></label>
+        <label>Samples per arm<input data-field="samples" type="number" min="2" max="128" value="10"></label>
+        <label>New tokens per continuation, maximum<input data-field="cont_max" type="number" min="1" max="4096" value="512"></label>
         <label>Temperature<input data-field="temperature" type="number" min="0.05" max="2" step="0.05" value="1"></label>
         <label>Seed<input data-field="seed" type="number" min="0" value="17"></label>
       </div>
@@ -19,6 +24,7 @@ export function mountInvestigation(host, context) {
     <p data-status role="status"></p><pre data-preview-text class="recorded-text" hidden></pre>
     <h3>Saved investigations</h3><div class="investigation-actions"><select data-saved aria-label="Saved investigation"></select><button data-refresh class="secondary">Refresh saved</button><button data-download class="secondary" disabled>Download artifact</button></div>
     <div data-output></div>`;
+  const scope=document.createElement('p');scope.className='micro';scope.textContent=budgetScopeNote();host.append(scope);
   const $ = s => host.querySelector(s), field = name => $(`[data-field="${name}"]`);
   let preview = null, activeJob = null, artifact = null, version = 0;
   const status = text => $('[data-status]').textContent = text;
@@ -30,6 +36,7 @@ export function mountInvestigation(host, context) {
   function request() {
     const c = context(); if(!c.result || !c.pass) throw new Error('Open a saved run first.');
     const q = {source_run_id:c.result.id, source_pass_id:c.pass.id, kind:field('kind').value};
+    if(c.continuation)q.source_selection={schema:'fork-trajectory-v1',type:'draw',checkpoint:c.continuation.checkpoint,draw_index:c.continuation.draw_index};
     if(q.kind === 'edit') {
       for(const name of ['start','end','samples','cont_max','temperature','seed']) q[name] = Number(field(name).value);
       q.replacement = field('replacement').value;
@@ -37,7 +44,7 @@ export function mountInvestigation(host, context) {
     return q;
   }
   function invalidate() {version++; preview=null; $('[data-run]').disabled=true; $('[data-preview-text]').hidden=true;}
-  host.addEventListener('input', invalidate);
+  host.addEventListener('input',()=>{invalidate();const values={};host.querySelectorAll('[data-field]').forEach(n=>values[n.dataset.field]=n.value);saveDraft('intervention',values);});
   field('kind').onchange = () => {invalidate(); host.querySelectorAll('[data-edit]').forEach(e => e.hidden = field('kind').value !== 'edit'); $('[data-capture]').hidden=field('kind').value!=='activation';};
   $('[data-copy]').onclick = () => {field('replacement').value=document.getElementById('replacement').value; invalidate();};
   $('[data-preview]').onclick = async () => {
@@ -69,9 +76,9 @@ export function mountInvestigation(host, context) {
       const capped=data.observations.filter(o=>o.stop_reason==='length').length;
       put('p',`${capped} capped continuations. Counts include Other; a percentage difference is not a significance test. Small samples, text matching and selecting this region after viewing results limit the conclusion.`,out);
       const select=put('select','',out);select.setAttribute('aria-label','Investigation continuation');
-      data.observations.forEach((o,i)=>select.add(new Option(`${o.arm} · draw ${o.draw+1} · ${o.label} · ${o.stop_reason}`,i)));
+      data.observations.forEach((o,i)=>select.add(new Option(`${o.arm} · continuation ${o.draw+1} · ${o.label} · ${o.stop_reason}`,i)));
       const text=put('pre','',out);text.className='recorded-text';
-      const show=()=>{const o=data.observations[Number(select.value)];text.textContent=o?`PRESERVED PREFIX\n${data.prefix_previews[o.arm]}\n\nNEW CONTINUATION\n${o.continuation_text}`:'No completed draws yet.';};select.onchange=show;show();
+      const show=()=>{const o=data.observations[Number(select.value)];text.textContent=o?`PRESERVED PREFIX\n${data.prefix_previews[o.arm]}\n\nNEW CONTINUATION\n${o.continuation_text}`:'No completed continuations yet.';};select.onchange=show;show();
     }
     if(data.captures) {
       put('p','Vectors are exported in the artifact. Norms summarize magnitude; they do not label decisions or explain their causes.',out);
@@ -98,17 +105,17 @@ export function mountInvestigation(host, context) {
     finally {if(!activeJob) {$('[data-stop]').hidden=true;$('[data-run]').disabled=true;}}
   }
   $('[data-run]').onclick=async()=>{
-    try {const q=request();if(JSON.stringify(q)!==preview)throw new Error('Preview the current settings first.');$('[data-run]').disabled=true;const job=await api('investigate',q); activeJob=job.job_id; $('[data-stop]').hidden=false; status('Investigation started.');poll();}
+    try {const q=request();if(JSON.stringify(q)!==preview)throw new Error('Preview the current settings first.');$('[data-run]').disabled=true;const job=await startEvidenceOperation('investigate',q); activeJob=job.job_id; $('[data-stop]').hidden=false; status('Investigation started.');poll();}
     catch(e) {status(e.message);}
   };
-  $('[data-stop]').onclick=async()=>{try {await api('stop',{job_id:activeJob});status('Stop requested. Completed draws or vectors are saved.');}catch(e){status(e.message);}};
+  $('[data-stop]').onclick=async()=>{try {await api('stop',{job_id:activeJob});status('Stop requested. Completed continuations or vectors are saved.');}catch(e){status(e.message);}};
   $('[data-refresh]').onclick=()=>saved().catch(e=>status(e.message));
   $('[data-saved]').onchange=async()=>{if(!$('[data-saved]').value)return;try{render(await api('investigation?id='+encodeURIComponent($('[data-saved]').value)));}catch(e){status(e.message);}};
   $('[data-download]').onclick=()=>{if(!artifact)return;const url=URL.createObjectURL(new Blob([JSON.stringify(artifact,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`investigation-${artifact.id}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
   return {refresh() {
-    const c=context();if(!c.record)return;invalidate();const t=c.position??0,end=Math.min(t+32,c.record.base.gen_ids.length);
+    const c=context();if(!c.record)return;invalidate();const selected=c.continuation?lensDraws(c.record,c.position).find(d=>d.draw_index===c.continuation.draw_index):null;const size=selected?.length??c.record.base.gen_ids.length;const t=c.position??0,end=Math.min(t+32,size);$('[data-source-note]').textContent=selected?`Source: continuation ${selected.draw_index+1}, checkpoint ${c.position}. Token coordinates belong to this saved trajectory.`:'Source: original saved response. Historical original-response edits retain this source.';
     field('start').value=t;field('end').value=end;field('positions').value=t;
-    field('replacement').value=(c.record.base.token_texts??[]).slice(t,end).join('');
+    field('replacement').value=selected?'':(c.record.base.token_texts??[]).slice(t,end).join('');const draft=readDraft('intervention');if(draft)for(const [k,v]of Object.entries(draft)){const input=field(k);if(input)input.value=v;}
     saved().catch(e=>status(e.message));
   }};
 }

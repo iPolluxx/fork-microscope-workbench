@@ -1,3 +1,6 @@
+// generated: Codex, fork-microscope-revamp-ASTRA-BRIEF.md — preserve shared selection during setup.
+import './investigation-shell.mjs';
+import {getSelection,setSelection,selectionURL} from './selection.mjs';
 import {computeReadiness} from './compute-readiness.mjs';
 import {gpuEstimate} from './math.mjs';
 import {newPass,resultPasses} from './passes.mjs';
@@ -34,7 +37,7 @@ function showSetupStep(step,{focus=false}={}){
   for(const button of document.querySelectorAll('[data-step]')){if(button.dataset.step===step)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');}
   if(focus)document.querySelector(`[data-setup-step="${step}"]`).scrollIntoView({block:'start',behavior:'auto'});
 }
-function observatoryRoute(id){const href='/observatory.html'+(id?'?run='+encodeURIComponent(id):'');$('observatory-link').href=href;}
+function observatoryRoute(id){const link=document.getElementById('observatory-link');if(link)link.href=selectionURL({...getSelection(),...(id?{run_id:id}:{})},'explore',location.href);}
 $('runtime-address').textContent=location.host;
 for(const button of document.querySelectorAll('[data-step]'))button.onclick=()=>showSetupStep(button.dataset.step);
 $('to-prompt').onclick=()=>showSetupStep('prompt',{focus:true});$('to-scan').onclick=()=>{if(!responseReadiness().canReview)return;baseReviewed=true;actions();showSetupStep('scan',{focus:true});};
@@ -50,7 +53,7 @@ function renderPasses(){
     $('pass-tabs').append(b);}
   const p=passes.find(x=>x.id===activePass),details=$('pass-details');details.replaceChildren();details.setAttribute('aria-labelledby','tab-'+p.id);
   const advanced=document.createElement('details'),summary=document.createElement('summary'),advancedFields=document.createElement('div');summary.textContent='Pass name, offset & random seed';advancedFields.className='pass-advanced-fields';advanced.append(summary,advancedFields);
-  for(const [key,label,min,max]of [['label','Pass name'],['samples','Total draws per checkpoint',5,512],['start','Region first token',0,4095],['end','Region last token',0,4095],['stride','Checkpoint spacing',1,128],['offset','Offset from region start',0,127],['seed','Pass random seed',0,2147483647]]){
+  for(const [key,label,min,max]of [['label','Pass name'],['samples','Samples per checkpoint',5,512],['start','Region first token',0,4095],['end','Region last token',0,4095],['stride','Checkpoint spacing',1,128],['offset','Offset from region start',0,127],['seed','Pass random seed',0,2147483647]]){
     const wrap=document.createElement('label');wrap.textContent=label;const input=document.createElement('input');input.id='pass-'+key;input.type=key==='label'?'text':'number';if(min!==undefined){input.min=min;input.max=max;}input.value=p[key];if(key==='label')input.maxLength=80;
     input.oninput=()=>{p[key]=key==='label'?input.value:(input.value.trim()===''?NaN:Number(input.value));if(key==='label')$('tab-'+p.id).textContent=input.value||'Unnamed pass';queueEstimate();};wrap.append(input);(['label','offset','seed'].includes(key)?advancedFields:details).append(wrap);}
   details.append(advanced);
@@ -68,8 +71,8 @@ async function estimate(){
   const version=++estimateRevision;$('temperature-notice').hidden=num('temperature')===1;
   if(!runtimeConnected||!state?.base||state.job.status==='running')return;
   try{const v=await api('estimate',config());if(version!==estimateRevision)return;budget=v;budgetIssue='';$('budget').replaceChildren();
-    const lines=v.passes.map(p=>`${p.label}: ${p.positions.length} checkpoints × ${p.samples} draws = ${fmt(p.positions.length*p.samples)} continuations.`);
-    lines.push(`${v.unique_checkpoints} distinct checkpoints; ${v.sampled_checkpoint_visits} visits including overlaps.`,`Independent reference: ${fmt(v.reference_rollouts)} additional continuations.`,`Total: ${fmt(v.total_rollouts)} draws, at most ${fmt(v.max_continuation_tokens)} generated continuation tokens.`,`Fewer samples is not evidence of savings at comparable accuracy.`);
+    const lines=v.passes.map(p=>`${p.label}: ${p.positions.length} checkpoints × ${p.samples} samples = ${fmt(p.positions.length*p.samples)} continuations.`);
+    lines.push(`${v.unique_checkpoints} distinct checkpoints; ${v.sampled_checkpoint_visits} visits including overlaps.`,`Independent reference: ${fmt(v.reference_rollouts)} additional continuations.`,`Total: ${fmt(v.total_rollouts)} samples, at most ${fmt(v.max_continuation_tokens)} generated continuation tokens.`,`Fewer samples is not evidence of savings at comparable accuracy.`);
     for(const text of lines){const p=document.createElement('div');p.textContent=text;$('budget').append(p);}money();actions();
   }catch(e){if(version!==estimateRevision)return;budget=null;budgetIssue=e.message;$('budget').textContent=e.message;money();actions();}
 }
@@ -94,7 +97,7 @@ function actions(){const busy=state?.job.status==='running',modelReady=runtimeCo
   for(const [id,help]of [['load','load-help'],['base','base-help'],['run','run-help']])$(id).title=$(id).disabled?$(help).textContent:'';
   $('step-model-state').textContent=modelReady?'Model ready':runtimeConnected?(hardware.blocked?'GPU worker needed':'Choose & load'):'Connect runtime';
   $('step-prompt-state').textContent=baseReady&&!baseFormDirty?(review.canScan?'Response reviewed':'Review response'):baseFormDirty&&baseReady?'Response needs update':'Prompt & answers';
-  $('step-scan-state').textContent=budget?`${fmt(budget.total_rollouts)} planned draws`:'Checkpoints & budget';
+  $('step-scan-state').textContent=budget?`${fmt(budget.total_rollouts)} planned samples`:'Checkpoints & budget';
 }
 async function refresh(){
   const before=state,wasConnected=runtimeConnected;try{state=await api('status');runtimeConnected=true;}catch(e){runtimeConnected=false;$('connection-badge').textContent='Runtime unavailable';$('connection-badge').dataset.state='offline';$('phase').textContent='Connection lost — your runtime is not reachable.';$('connection-fix').hidden=false;$('connection-advice').textContent=connectionAdvice();actions();throw e;}
@@ -111,7 +114,7 @@ async function refresh(){
   if(changed){lastBaseSignature=signature;baseFormDirty=false;baseReviewed=false;$('accept-other').checked=false;if(state.base){const cfg=state.base.config;if(cfg?.prompt!==undefined){$('question').value=cfg.prompt;$('answers').value=cfg.answers.join('\n');$('mode').value=cfg.mode;$('base-cap').value=cfg.max_tokens;$('seed').value=cfg.seed;}$('base-text').textContent=state.base.text;$('base-description').textContent=`${state.base.length} tokens · finished by ${state.base.finish_reason}${state.base.finish_reason!=='stop'?' — INCOMPLETE BASE':''} · ${state.base.question.question}`;
     $('base-tokens').textContent=state.base.tokens.map((token,i)=>`${i}\t${JSON.stringify(token)}\tP(top)=${state.base.top_token_probabilities?.[i]?.toFixed(6)??'not recorded'}`).join('\n');
     passes=passes.map(p=>fullTracePass(p,state.base.length));renderPasses();
-  }else{$('base-text').textContent='No generated response yet.';$('base-tokens').textContent='No trace yet.';budget=null;$('budget').textContent='Generate a base response first.';money();}}
+  }else{$('base-text').textContent='No generated response yet.';$('base-tokens').textContent='No response yet.';budget=null;$('budget').textContent='Generate a base response first.';money();}}
   if(state.job.status==='complete'&&state.job.action==='base'&&before?.job.status==='running'){baseFormDirty=false;actions();showSetupStep('prompt');$('base-review').scrollIntoView({block:'start',behavior:'auto'});$('review-text').focus({preventScroll:true});}
   if(state.job.status!=='running'&&(before?.job.status==='running'||changed))await estimate();
   if(state.job.result_id&&state.job.result_id!==lastResultId){lastResultId=state.job.result_id;const route=new URL(location.href);if(before||(!['run','source','set'].some(key=>route.searchParams.has(key))&&route.searchParams.get('view')!=='setup')){await listRuns();$('runs').value=lastResultId;await loadResult(lastResultId);}}return state;
@@ -167,7 +170,7 @@ async function draw(){
     const intervals=e.observed.map(v=>v.counts?wilsonInterval(v.counts[k],v.samples):null);
     traces.push({x:e.observed.map(v=>v.t),y:e.observed.map(v=>v.values[k]),name:p.label+(result.schema_version===2?' · observed':' · legacy weighted'),mode:'markers',marker:{color,size:9,line:{width:1,color:'#fff'}},
       error_y:{type:'data',symmetric:false,visible:$('observed-bands').checked,array:intervals.map((v,j)=>v?v[1]-e.observed[j].values[k]:0),arrayminus:intervals.map((v,j)=>v?e.observed[j].values[k]-v[0]:0),thickness:1,width:4,color},
-      customdata:e.observed.map(v=>[p.id,JSON.stringify(result.base.tokens[v.t]),v.counts?`${v.counts[k]} / ${v.samples} draws`:'Legacy or unverified counts']),hovertemplate:'Checkpoint %{x}: %{customdata[1]}<br>Observed proportion: %{y:.3f}<br>%{customdata[2]}<extra></extra>'});
+      customdata:e.observed.map(v=>[p.id,JSON.stringify(result.base.tokens[v.t]),v.counts?`${v.counts[k]} / ${v.samples} samples`:'Legacy or unverified counts']),hovertemplate:'Checkpoint %{x}: %{customdata[1]}<br>Observed proportion: %{y:.3f}<br>%{customdata[2]}<extra></extra>'});
     const status=e.constant?'No sampled outcome differences.':e.intervals.some(v=>v.tv>0)?'Sampled outcome differences present; inspect below.':'No comparable adjacent observations.';
     summaries.push(`${p.label}: ${e.observed.length} checkpoints. ${status} ${e.segmentationEnabled?'Segmentation enabled.':'Segmentation unavailable.'}${e.sparse?' Fewer than four checkpoints; gaps remain unmeasured.':''}${e.invalidPoints?' Invalid saved observations were omitted.':''}`);
     for(const interval of e.intervals){
@@ -180,9 +183,9 @@ async function draw(){
   await Plotly.react('live-plot',traces,{height:480,margin:{l:65,r:20,t:20,b:110},xaxis:{title:{text:'Response-token position'},...(graphRange?{range:graphRange}:{autorange:true})},yaxis:{title:{text:`Proportion: ${$('outcome').value}`},range:[-.04,1.04]},legend:{orientation:'h',y:-.22},shapes,paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'#0b1725',font:{color:'#b9cce0'},hovermode:'closest',dragmode:'zoom',uirevision:result.id},{responsive:true,displaylogo:false,scrollZoom:false});
   const plot=$('live-plot');plot.removeAllListeners?.('plotly_click');plot.on?.('plotly_click',event=>{const point=event.points[0];if(!point.customdata)return;openCheckpoint(point.customdata[0],point.x);});
   renderIntervals();
-  $('result-label').textContent=`${result.model.model_id} · ${result.schema_version===2?'all collected draws enter each fit':'legacy per-branch sampling'} · ${result.base.question.question}`;
+  $('result-label').textContent=`${result.model.model_id} · ${result.schema_version===2?'all collected continuations enter each fit':'legacy per-branch sampling'} · ${result.base.question.question}`;
   $('result-warnings').replaceChildren();
-  const warnings=result.schema_version===2?[]:['Legacy run: fitted lines use a subsample of the collected outcomes; per-draw completion metadata may be unavailable.'];
+  const warnings=result.schema_version===2?[]:['Legacy run: fitted lines use a subsample of the collected outcomes; per-continuation completion metadata may be unavailable.'];
   if(result.reference?.warning)warnings.push(result.reference.warning);
   $('statistics').replaceChildren();
   for(const p of ps){const c=p.curve,m=result.measured[p.id],box=document.createElement('div');box.className='stat-card';const title=document.createElement('strong');title.textContent=p.label;box.append(title);
@@ -240,7 +243,7 @@ function viewer(reset=true){
   $('continuations').replaceChildren();
   $('viewer-note').textContent=rec?'Run '+result.id+' · '+result.base.question.question:'Select a saved run. No attached model is needed to browse.';
   const pos=rec?.positions?.find(p=>String(p.t)===position);
-  $('checkpoint-info').textContent=pos?`${pos.samples} total draws · ${pos.candidates.length} retained branches · ${(100*pos.retained_mass).toFixed(3)}% next-token probability mass retained.`:'Browse all checkpoints or choose one. Each row is an actual saved draw; completed does not mean correct.';
+  $('checkpoint-info').textContent=pos?`${pos.samples} total samples · ${pos.candidates.length} retained branches · ${(100*pos.retained_mass).toFixed(3)}% next-token probability mass retained.`:'Browse all checkpoints or choose one. Each row is an actual saved continuation; completed does not mean correct.';
   const rows=[];let total=0;
   const query=$('viewer-search').value.toLocaleLowerCase(),outcome=$('viewer-outcome').value,status=$('viewer-status').value;
   for(const b of rec?.branches||[]){
@@ -259,7 +262,7 @@ function viewer(reset=true){
   $('draw-prev').disabled=evidencePage===0;$('draw-next').disabled=(evidencePage+1)*pageSize>=rows.length;
   if(!page.some(r=>r.key===selectedDraw))selectedDraw=page[0]?.key??null;
   for(const row of page){const b=document.createElement('button');b.className='draw-row';b.setAttribute('role','radio');b.setAttribute('aria-checked',String(row.key===selectedDraw));b.tabIndex=row.key===selectedDraw?0:-1;
-    const title=document.createElement('strong');title.textContent=`Token ${row.b.t} · Draw ${(row.b.draw_indices?.[row.i]??row.i)+1} · ${row.answer}`;
+    const title=document.createElement('strong');title.textContent=`Token ${row.b.t} · Continuation ${(row.b.draw_indices?.[row.i]??row.i)+1} · ${row.answer}`;
     const meta=document.createElement('span');meta.textContent=`${row.obs?.stop_reason==='length'?'Reached cap':row.obs?.stop_reason==='eos'?'Completed':'Historical'} · ${row.obs?.generated_tokens??row.b.cont_lens?.[row.i]??'?'} new tokens`;
     b.append(title,meta);b.onclick=()=>{selectedDraw=row.key;viewer(false);$('continuations').querySelector('[aria-checked="true"]')?.focus();};b.onkeydown=e=>{if(['ArrowDown','ArrowUp','ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();let i=page.findIndex(r=>r.key===selectedDraw);i=e.key==='Home'?0:e.key==='End'?page.length-1:(i+(['ArrowDown','ArrowRight'].includes(e.key)?1:-1)+page.length)%page.length;selectedDraw=page[i].key;viewer(false);$('continuations').querySelector('[aria-checked="true"]')?.focus();}};$('continuations').append(b);
   }
@@ -269,7 +272,7 @@ function showDraw(row){
   const target=$('draw-detail');target.replaceChildren();
   if(!row){const p=document.createElement('p');p.textContent='No continuations match these filters.';target.append(p);return;}
   const {b,i,answer,obs}=row;
-  const title=document.createElement('h3');title.textContent=`Checkpoint ${b.t} / Draw ${(b.draw_indices?.[i]??i)+1}`;target.append(title);
+  const title=document.createElement('h3');title.textContent=`Checkpoint ${b.t} / Continuation ${(b.draw_indices?.[i]??i)+1}`;target.append(title);
   const meta=document.createElement('p');meta.className='help';meta.textContent=`Outcome: ${answer} · branch token ID ${b.tok_id} · next-token P=${b.tok_p.toFixed(6)} · ${obs?.label_source??'historical extraction'} · ${obs?.channel_reached??'channel unknown'}`;target.append(meta);
   if(obs?.matched_answers?.length){const p=document.createElement('p');p.textContent='Matched answer texts: '+obs.matched_answers.join(' / ');target.append(p);}
   const mode=document.createElement('select');mode.setAttribute('aria-label','Displayed text');mode.append(new Option('Newly generated continuation','continuation'),new Option('Full response: preserved prefix + branch + continuation','full'),new Option('Reply used for matching','reply'),new Option('Continuation token IDs','ids'));target.append(mode);
@@ -284,8 +287,8 @@ for(const id of ['viewer-position','viewer-outcome','viewer-status'])$(id).oncha
 $('viewer-search').oninput=()=>viewer();
 $('draw-prev').onclick=()=>{evidencePage--;viewer(false);};$('draw-next').onclick=()=>{evidencePage++;viewer(false);};
 function register(){const context=document.modelContext;if(!context?.registerTool)return;const lifecycle=new AbortController();window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});
-  for(const tool of [{name:'read_live_fork',description:'Read attached model, fixed trace and current job. Does not start computation.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:true},execute:refresh},
-    {name:'start_live_fork_action',description:'Start load, base, run or unload. Loading may download weights. Load settings: model_id, revision, device (auto/cpu/cuda), batch_size. Base settings: prompt (text), answers (1–32 unique strings to match anywhere in completed replies), mode (chat/base), max_tokens, seed. Unload takes {}. Run settings: passes array (id,label,start,end,stride,offset,samples 5-512 draws per checkpoint,seed), cont_max,temperature,top_k,threshold,dense,reference_samples,tuning. Maximum 8 passes. Read status to track completion.',inputSchema:{type:'object',properties:{action:{type:'string',enum:['load','base','run','unload']},settings:{type:'object'}},required:['action','settings'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:true},execute:async input=>{const response=await start(input.action,input.settings);if(input.action==='run'&&input.settings.passes){passes=input.settings.passes.map(p=>({...p}));activePass=passes[0].id;renderPasses();}return response;}}]){try{Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{});}catch{}}
+  for(const tool of [{name:'read_live_fork',description:'Read attached model, original response and current job. Does not start computation.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:true},execute:refresh},
+    {name:'start_live_fork_action',description:'Start load, base, run or unload. Loading may download weights. Load settings: model_id, revision, device (auto/cpu/cuda), batch_size. Base settings: prompt (text), answers (1–32 unique strings to match anywhere in completed replies), mode (chat/base), max_tokens, seed. Unload takes {}. Run settings: passes array (id,label,start,end,stride,offset,samples 5-512 samples per checkpoint,seed), cont_max,temperature,top_k,threshold,dense,reference_samples,tuning. Maximum 8 passes. Read status to track completion.',inputSchema:{type:'object',properties:{action:{type:'string',enum:['load','base','run','unload']},settings:{type:'object'}},required:['action','settings'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:true},execute:async input=>{const response=await start(input.action,input.settings);if(input.action==='run'&&input.settings.passes){passes=input.settings.passes.map(p=>({...p}));activePass=passes[0].id;renderPasses();}return response;}}]){try{Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{});}catch{}}
 }
 async function poll(){try{await refresh();}catch(e){error(e.message);}setTimeout(poll,1500);}
 renderPasses();await listRuns().catch(e=>error(e.message));await refresh().catch(e=>error(e.message));
@@ -295,6 +298,6 @@ else if(requestedRun){$('runs').value=requestedRun;await loadResult(requestedRun
 if(urlParams.get('set')&&urlParams.get('prompt')){try{const saved=await api('prompt-sets'),set=saved.sets.find(item=>item.id===urlParams.get('set')),prompt=set?.prompts.find(item=>item.id===urlParams.get('prompt'));if(!prompt)throw new Error('This saved prompt is unavailable on the connected worker.');$('question').value=prompt.prompt;$('answers').value=prompt.answers.join('\n');$('mode').value=prompt.mode;$('base-cap').value=prompt.max_tokens;$('seed').value=prompt.seed;baseFormDirty=true;showSetupStep('prompt');navigate('setup');actions();}catch(e){error(e.message);}}
 if(urlParams.get('view')==='setup'||sourceRun)navigate('setup');sourceHelp();register();poll();
 window.addEventListener('worker-connection-change',async()=>{
-  inspectionEpoch++;inspectionBusy=false;modelInspection=null;inspectionSignature='';$('model-inspection').hidden=true;state=null;result=null;runtimeConnected=false;budget=null;budgetIssue='';lastBaseSignature='';lastResultId='';baseFormDirty=false;resultRevision++;estimateRevision++;$('runs').replaceChildren(new Option('Select a completed run',''));$('model-id').value='';$('revision').value='main';$('model-source').value='hub';$('source-model-note').hidden=true;$('budget').textContent='Attach a model and generate a response to configure a scan.';$('money').textContent='';$('base-text').textContent='No generated response yet.';$('base-tokens').textContent='No trace yet.';$('export').hidden=true;observatoryRoute(null);history.replaceState(null,'',location.pathname);sourceHelp();showSetupStep('model');navigate('setup');actions();
+  inspectionEpoch++;inspectionBusy=false;modelInspection=null;inspectionSignature='';$('model-inspection').hidden=true;state=null;result=null;runtimeConnected=false;budget=null;budgetIssue='';lastBaseSignature='';lastResultId='';baseFormDirty=false;resultRevision++;estimateRevision++;$('runs').replaceChildren(new Option('Select a completed run',''));$('model-id').value='';$('revision').value='main';$('model-source').value='hub';$('source-model-note').hidden=true;$('budget').textContent='Attach a model and generate a response to configure a scan.';$('money').textContent='';$('base-text').textContent='No generated response yet.';$('base-tokens').textContent='No response yet.';$('export').hidden=true;observatoryRoute(null);sourceHelp();showSetupStep('model');navigate('setup');actions();
   try{await listRuns();await refresh();}catch(e){error(e.message);}
 });

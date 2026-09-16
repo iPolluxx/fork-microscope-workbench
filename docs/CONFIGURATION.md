@@ -3,6 +3,11 @@
 Read this before proposing or running an automated investigation. It describes
 `fork-microscope investigation start`, not every lower-level manual operation.
 
+The interactive Setup/API additionally supports structured conversation history,
+final-marker rules, saved response selection and bounded outcome search. Those are
+documented in [Investigation workflow](INVESTIGATION-WORKFLOW.md),
+not accepted as extra fields by this automatic CLI configuration.
+
 ## Discover settings without compute
 
 ```bash

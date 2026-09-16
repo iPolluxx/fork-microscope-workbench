@@ -1,3 +1,4 @@
+# generated: Codex — workflow v2 manual catalog and legacy orchestration.
 """Single-owner, durable orchestration on an existing Fork Microscope worker.
 
 Budgets reserve worst-case generated tokens before each operation. Interrupted
@@ -109,7 +110,9 @@ def lens_choice(run,settings):
 class BudgetStop(Exception):pass
 class UserStop(Exception):pass
 
-class WorkflowManager:
+from fork_microscope.investigation_catalog import InvestigationCatalog
+
+class WorkflowManager(InvestigationCatalog):
     def __init__(self,service,root):
         self.service=service;service.workflow_manager=self;self.root=Path(root);self.root.mkdir(parents=True,exist_ok=True)
         self.lock=threading.RLock();self.active=None;self.cancelled=set()
@@ -117,7 +120,34 @@ class WorkflowManager:
             try:
                 d=json.loads(p.read_text())
                 if d.get('status')=='running':
-                    d['elapsed_seconds']=max(d.get('elapsed_seconds',0),d['config']['limits']['max_seconds']-max(0,d.get('deadline_at',time.time()+d['config']['limits']['max_seconds']-d.get('elapsed_seconds',0))-time.time()))
+                    limits = d.get('limits') or (d.get('config') or {}).get('limits', {'max_seconds': 1})
+                    d['elapsed_seconds']=max(d.get('elapsed_seconds',0),limits['max_seconds']-max(0,d.get('deadline_at',time.time()+limits['max_seconds']-d.get('elapsed_seconds',0))-time.time()))
+                    pending=d.get('pending') or {}
+                    if pending.get('action')=='base' and hasattr(self.service,'response'):
+                        try:
+                            response=self.service.response(pending['job_id'])
+                            rid=response['id']
+                            if rid not in d.setdefault('responses',[]):d['responses'].append(rid)
+                            d['selected_response_id']=rid
+                            for op in d.get('operations',[]):
+                                if op.get('status')=='running' and rid not in op.setdefault('response_ids',[]):op['response_ids'].append(rid)
+                            for search in d.get('searches',[]):
+                                if search.get('status')=='running' and rid not in search['response_ids']:search['response_ids'].append(rid)
+                            d.pop('pending',None)
+                        except (ValueError,KeyError):pass
+                    if pending.get('action') in ('run','refine','lens','investigate','patch'):
+                        try:
+                            action=pending['action']
+                            artifact=(self.service.result(pending['job_id'],raw=True) if action in ('run','refine') else self.service.investigation(pending['job_id']))
+                            if action in ('run','refine') or artifact.get('status')=='complete':
+                                kind='runs' if action in ('run','refine') else 'lenses' if action=='lens' else 'patches' if action=='patch' else 'edits' if artifact['request']['kind']=='edit' else 'captures'
+                                if artifact['id'] not in d.setdefault(kind,[]):d[kind].append(artifact['id'])
+                                d.pop('pending',None)
+                        except (ValueError,KeyError):pass
+                    for op in d.get('operations', []):
+                        if op.get('status') == 'running': op['status'] = 'interrupted'
+                    for search in d.get('searches', []):
+                        if search.get('status') == 'running': search.update(status='interrupted', completion_reason='interrupted')
                     d.update(status='interrupted',message='Worker restarted. Completed artifacts are retained; resume explicitly.');self.save(d)
             except (OSError,ValueError):continue
     def save(self,d):
@@ -125,12 +155,14 @@ class WorkflowManager:
             if d['id'] in self.cancelled:d['cancellation_requested']=True
             p=self.root/(identifier(d['id'])+'.json');tmp=p.with_suffix('.tmp');tmp.write_bytes(canonical(d));tmp.replace(p)
     def read(self,id):
-        p=self.root/(identifier(id)+'.json')
-        if not p.exists():raise ValueError('Investigation job not found.')
-        d=json.loads(p.read_text())
-        if self.active==id:
-            with self.service.lock:d['worker_job']=copy.deepcopy(self.service.job)
-        return d
+        # Read a coherent record/ownership snapshot across launch and finalization.
+        with self.lock:
+            p=self.root/(identifier(id)+'.json')
+            if not p.exists():raise ValueError('Investigation job not found.')
+            d=json.loads(p.read_text())
+            if self.active==id:
+                with self.service.lock:d['worker_job']=copy.deepcopy(self.service.job)
+            return d
     def list(self):return [self.read(p.stem) for p in sorted(self.root.glob('*.json'),key=lambda x:x.stat().st_mtime,reverse=True)]
     def start(self,request):
         if not isinstance(request,dict) or set(request)!={'request_id','config'}:raise ValueError('Provide request_id and config.')
@@ -142,9 +174,14 @@ class WorkflowManager:
                 d=self.read(id)
                 if d['config']!=config:raise ValueError('Request ID already belongs to different settings.')
                 return d
-            d=dict(id=id,schema='fork-workflow-v1',created=time.time(),status='running',config=config,
+            d=dict(id=id,schema='fork-workflow-v2',record_revision=0,created=time.time(),status='running',config=config,
                    runs=[],lenses=[],steps=[],reservations={'samples':0,'generated_tokens':0},elapsed_seconds=0,
                    cancellation_requested=False,message='Starting investigation')
+            from fork_microscope.investigation_records import adapt_workflow
+            d=adapt_workflow(d)
+            d['context']=dict(name='Investigation '+id[:8], question=config['base']['prompt'],
+                input=dict(schema='fork-input-v1', prompt=config['base']['prompt'], mode=config['base']['mode']),
+                outcome_rule=dict(schema='fork-outcome-rule-v1',method='text_match',answers=config['base']['answers']))
             self.launch(d);return self.read(id)
     def launch(self,d):
         with self.service.lock:
@@ -161,6 +198,7 @@ class WorkflowManager:
     def resume(self,id):
         with self.lock:
             d=self.read(id)
+            if d.get('operations'):raise ValueError('Interrupted manual operations cannot be retried automatically. Saved evidence and reservations are retained; use a new explicit request.')
             if d['status'] not in ('interrupted','error'):raise ValueError('Only interrupted or failed jobs can resume. Cancelled or exhausted jobs need a new request.')
             # Do not repeat a possibly completed paid phase. Reconcile its stable ID.
             pending=d.get('pending')
@@ -185,10 +223,22 @@ class WorkflowManager:
             if d['id'] in self.cancelled or latest.get('cancellation_requested'):raise UserStop()
         if time.monotonic()>=self.deadline:raise BudgetStop('Time allowance reached at a cooperative cancellation boundary.')
     def reserve(self,d,samples=0,tokens=0):
-        limits=d['config']['limits'];r=d['reservations']
+        limits=d.get('limits') or d['config']['limits'];r=d['reservations']
         if r['samples']+samples>limits['max_samples'] or r['generated_tokens']+tokens>limits['max_generated_tokens']:
             raise BudgetStop('Next operation exceeds the remaining worst-case sample/token allowance.')
         r['samples']+=samples;r['generated_tokens']+=tokens
+    def retain_completed_response(self,d,operation):
+        try:
+            response=self.service.response(operation)
+        except (ValueError,KeyError,AttributeError):return
+        rid=response['id']
+        if rid not in d.setdefault('responses',[]):d['responses'].append(rid)
+        d['selected_response_id']=rid
+        for op in d.get('operations',[]):
+            if op.get('status')=='running' and op.get('action')=='search' and rid not in op['response_ids']:op['response_ids'].append(rid)
+        for search in d.get('searches',[]):
+            if search.get('status')=='running' and rid not in search['response_ids']:search['response_ids'].append(rid)
+        d.pop('pending',None);self.save(d)
     def perform(self,d,action,payload,samples=0,tokens=0,rationale=None):
         self.checkpoint(d);self.reserve(d,samples,tokens)
         # Persist an operation ID BEFORE it can start. Reconcile by this ID on restart.
@@ -202,13 +252,21 @@ class WorkflowManager:
                 self.service.cancel(operation)
                 # Keep ownership until the model has actually stopped.
                 while self.service.job['status']=='running':time.sleep(.1)
+                if action=='base':self.retain_completed_response(d,operation)
                 raise
             with self.service.lock:job=dict(self.service.job)
             if job['status']!='running':break
             time.sleep(.1)
+        if action=='base' and job['status']!='complete':self.retain_completed_response(d,operation)
         if job['status']!='complete':raise RuntimeError(f"{action} did not complete: {job.get('phase','unknown error')}")
         if action in ('run','refine'):d['runs'].append(job['result_id'])
         if action=='lens':d['lenses'].append(job['investigation_id'])
+        if action=='base' and job.get('response_id'):
+            d.setdefault('responses', []).append(job['response_id'])
+            d['selected_response_id']=job['response_id']
+        if action in ('investigate','patch') and job.get('investigation_id'):
+            kind = 'patches' if action == 'patch' else 'edits' if payload['kind'] == 'edit' else 'captures'
+            d.setdefault(kind, []).append(job['investigation_id'])
         d.pop('pending',None);self.save(d)
         return job
     def execute(self,d):
@@ -259,11 +317,20 @@ class WorkflowManager:
                 # Preserve a cancellation requested while a phase finished.
                 latest=self.read(d['id'])
                 if d['id'] in self.cancelled:d.update(status='cancelled',message='Cancelled at completion boundary.')
-                self.save(d)
-                with self.service.lock:self.service.workflow_owner=None;self.service.workflow_deadline=None
-                self.active=None
+                with self.service.lock:
+                    self.service.workflow_owner=None;self.service.workflow_deadline=None
+                    self.active=None
+                    # Publish terminal state only after ownership is released.
+                    self.save(d)
     def export(self,id):
         d=self.read(id)
+        if d.get('schema') == 'fork-workflow-v2':
+            return build_bundle([self.service.result(i,raw=True) for i in d['runs']],
+                [self.service.investigation(i) for i in d['lenses']], d,
+                patches=[self.service.investigation(i) for i in d.get('patches', [])],
+                responses=[self.service.response(i) for i in d.get('responses', [])],
+                edits=[self.service.investigation(i) for i in d.get('edits', [])],
+                captures=[self.service.investigation(i) for i in d.get('captures', [])])
         if not d['runs']:raise ValueError('No completed runs are available to export yet.')
         return build_bundle([self.service.result(i,raw=True) for i in d['runs']],
                             [self.service.investigation(i) for i in d['lenses']],d)

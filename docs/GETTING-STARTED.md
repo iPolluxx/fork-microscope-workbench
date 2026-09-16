@@ -1,8 +1,9 @@
+<!-- generated: Codex — fork-microscope-revamp-ASTRA-BRIEF.md, updated first-use routes. -->
 # Your first Fork Microscope session
 
 [All documentation](README.md) · For a visual overview, open **Guide** from Workspace.
 
-**Already have an investigation bundle?** Use the CPU setup below, start the worker, then open **Explore → Import evidence**. You can browse its saved runs and lens readouts without loading a model. To collect new evidence, follow the full sequence below.
+**Already have an investigation bundle?** Open **Explore → Import evidence**. Complete bundles stay in this browser and their saved curves, continuations and readouts work without a worker or GPU. Keep the JSON file as your backup. The same file can be imported on another device. The static site also opens a real example investigation; no setup is required to try it. To collect new evidence, follow the sequence below.
 
 Fork Microscope has two pieces:
 
@@ -132,14 +133,14 @@ the local dashboard and allow that dashboard's exact origin in the startup comma
 
 ## 4. Load a model
 
-After connection, the app opens **Configure → Model**.
+Open **Setup** and expand the model controls after connecting compute.
 
 1. Enter a Hugging Face model ID, such as `organization/model-name`, or choose
    **Local directory on my worker** and enter a path on the worker.
 2. Click **Inspect model requirements**. This checks the model format and shows
    what the worker can tell you about its hardware.
 3. Click **Load model** after inspection succeeds.
-4. Continue to **Question**.
+4. Save the investigation prompt, outcome rules and resource limits in Setup.
 
 The model runs where the worker runs. A local directory is a path on that worker,
 not an upload from your browser. For a private or gated Hugging Face model, sign
@@ -152,31 +153,29 @@ code, and pre-quantized checkpoints are not supported attachment routes.
 
 ## 5. Run a small first scan
 
-In **Question**, write a prompt and provide answer texts that are easy to spot in
-a completed reply. A good first prompt asks the model to end with exactly one
-short marker, for example `DECISION=LAUNCH` or `DECISION=DELAY`.
+In **Setup**, name the investigation, write your prompt, and define outcomes.
+For example, ask for a final line `DECISION=LAUNCH` or `DECISION=DELAY` and use
+an explicit final-marker rule. Test the rule against example text before spending
+compute. Save the investigation with time, sample and generated-token limits.
 
-Click **Generate original response**. That one response becomes the fixed path
-that Fork Microscope will inspect. Stay in Question to read the response and its
-matched outcome. An unfinished response cannot be scanned: increase its base
-token cap or revise the prompt, then generate again. If no outcome or several
-outcomes match, adjust the answer texts or explicitly choose to explore `Other`.
-Choose **Response reviewed · choose scan settings** when you are ready.
+In **Explore**, choose **Generate**, bounded outcome search, or an existing saved
+response. Search preserves attempts and can finish without finding its target;
+it does not estimate how common the selected outcome is. Read the classification
+and completion status, then choose **Scan this response**. Capped or ambiguous
+output is not evidence of a completed contrasting decision.
 
-In **Scan**, the initial region covers the full original response. Start small:
-widely spaced checkpoints, 5–20 draws per checkpoint,
-and a continuation cap that fits the kind of reply you asked for. Check the budget
-before you click **Run checkpoint scan**.
+Start small and review the allowance before launching:
 
-- **Checkpoint spacing** means how far apart the sampled positions are in the
-  original response.
-- **Draws per checkpoint** means how many alternate continuations are generated
-  from each sampled prefix.
-- **Continuation cap** is the maximum new-token length of each continuation.
+- **Checkpoint spacing** controls distance between measurements on the saved response.
+- **Samples per checkpoint** controls how many alternative continuations are collected.
+- **Continuation token limit** bounds how long each continuation may generate.
 
-The answer matcher looks for literal text. It is not a truth or quality judge.
-Replies that match multiple labels, no labels, or do not finish are placed in
-`Other` so you can read them yourself.
+The scan uses the selected response's exact token IDs. Text matching and final-marker
+rules are literal classifiers, not truth or quality judges. Multiple matches,
+missing matches and unfinished replies are unresolved outcomes (`Other`).
+
+The older one-scan controls and CLI remain available for existing configurations;
+the investigation workflow adds shared context, history and resource accounting.
 
 Progress separates continuations saved from the token currently being generated.
 A rough remaining-time estimate appears after two continuations finish. Different
@@ -191,7 +190,7 @@ When the scan finishes, open **Explore**:
    outcomes change.
 2. **Compare paths** to read two completed continuations from the same checkpoint
    that have different recorded outcomes.
-3. **Look inside** to send that exact pair into a compatible Jacobian lens readout
+3. **Inspect & Test** to send that exact pair into a compatible Jacobian lens readout
    on your worker. This is evidence to investigate, not proof of a causal model
    mechanism.
 
@@ -304,6 +303,36 @@ Ctrl+S (Cmd+S) saves the set to the connected worker. Without a reachable worker
 the save action offers a portable file instead. It does not claim that file is
 stored on your worker. You can hide and reopen the introductory help.
 
-Configure reports the hardware the worker actually exposes. A CPU warning is
+Setup reports the hardware the worker actually exposes. A CPU warning is
 not a measured runtime estimate, and GPU availability is not a guarantee that
 your selected model fits. Model inspection and loading remain separate actions.
+
+## A small CPU end-to-end check
+
+After the CPU installation above, this canned example uses SmolLM2-135M-Instruct
+and a small checkpoint scan. It downloads the model on first use; no paid service
+is called. Speed depends on your CPU, caches and connection.
+
+```bash
+.venv/bin/fork-microscope run configs/cpu-custom.json
+.venv/bin/fork-microscope serve --port 8767
+```
+
+Open `http://127.0.0.1:8767/observatory.html`, select the saved scan, and read one
+continuation. This is a plumbing check, not an expectation of an interesting fork.
+Use **Export investigation** to download a portable file. An imported browser
+bundle is a copy, so it does not automatically synchronize back to the worker.
+
+## Continue a saved investigation on compute
+
+While browsing imported evidence, connect the destination machine using the
+connection control. **Transfer to connected compute** explicitly sends the
+selected bundle to that worker, validates it, and switches sources only after a
+successful import. It does not load a model or start generation. Load the exact
+saved model/revision before continuing. Conflicting existing IDs are rejected,
+leaving both copies intact; transfer to an empty worker or resolve the conflict
+rather than overwriting evidence. Older investigations without a recorded budget
+need an explicit new follow-up before running scoped operations.
+
+See [the complete investigation workflow](INVESTIGATION-WORKFLOW.md) for response
+search, matching rules, the three scan controls and interpretation limits.

@@ -1,3 +1,4 @@
+<!-- generated: Codex — documentation updated for the investigation revamp, 2026-09-15; authorized by Isaiah. -->
 # Fork Microscope documentation
 
 Start with the task you want to do. You do not need to read every document.
@@ -18,13 +19,15 @@ Start with the task you want to do. You do not need to read every document.
 
 ## The shortest useful path
 
-**One prompt:** Connect a machine → Configure model → Question and answer labels →
-Generate and review → Scan → Explore. Expand advanced controls when your research
+**One investigation:** Setup prompt/outcomes/limits → connect compute → generate,
+search or select a saved response → scan → refine/compare → Inspect & Test → export. Expand advanced controls when your research
 question needs them. You can also configure multiple prompts in Workspace.
 
-**Existing results:** Start a CPU worker → Explore → Import evidence → select a
-linked run → scan, compare paths, or open an existing lens artifact. You do not
-need a loaded model. Importing a file does not generate missing data.
+**Existing results:** Explore → Import evidence → select a linked run → browse
+the curve, compare saved paths or open an existing lens artifact. Complete bundles
+need no worker or GPU. Browser notes and evidence remain local to this origin;
+export to back them up. To resume computation, connect a worker and explicitly
+transfer the investigation. Importing a file does not generate missing data.
 
 **Automation:** Follow the operating guide, validate a configuration, start with
 an explicit request ID and resource limits, check status, then export. Automated
@@ -38,7 +41,7 @@ cost savings. The dashboard also accepts the same configuration file.
 | Prompt set | Reusable questions and outcome labels | Generated results |
 | Investigation configuration | Model, prompt, sampling policy, lens settings and limits for a job | Evidence from that job |
 | Single-run evidence export | One scan and its recorded data | A complete family of runs and lens artifacts |
-| **Investigation bundle** | Linked runs, exact tokens, continuations, classifications, fits, lineage, collected lens artifacts and completed activation tests | Model weights or compute for new work |
+| **Investigation bundle** | Prompt, saved responses/search attempts, linked runs, exact tokens, continuations, classifications, fits, comparisons, conclusions and collected inspection/intervention artifacts | Model weights or compute for new work |
 
 Use **Export investigation** in Explore, or the CLI export command, for a portable
 backup. Import the bundle through **Import evidence**. Each run remains
@@ -49,8 +52,8 @@ those before sharing a bundle.
 ## Three settings to learn first
 
 - **Spacing**: where to measure along the original response. Smaller spacing adds checkpoints.
-- **Draws per checkpoint**: how many new continuations to collect at each position.
-- **New-token cap**: the maximum generated length of each continuation.
+- **Samples per checkpoint**: how many new continuations to collect at each position.
+- **Continuation token limit**: the maximum generated length of each continuation.
 
 Concurrent continuations is a separate throughput/memory setting. The full
 [automated configuration reference](CONFIGURATION.md) describes all

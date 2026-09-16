@@ -1,9 +1,10 @@
+// generated: Codex, fork-microscope-revamp-ASTRA-BRIEF.md — approved UI glossary.
 export function plan(config, lastToken) {
   const keys = ['row', 'samples', 'stride', 'shift', 'start', 'end', 'draw_start'];
   if (keys.some(k => !Number.isInteger(config[k]))) throw new Error('Use whole numbers for sampling settings.');
   const {row,samples,stride,shift,start,end,draw_start} = config;
   if (row<0 || row>99) throw new Error('Choose a released question.');
-  if(samples<1 || samples>200 || draw_start<0 || draw_start+samples>200) throw new Error('Samples plus draw start must fit within the 200 recorded draws.');
+  if(samples<1 || samples>200 || draw_start<0 || draw_start+samples>200) throw new Error('Samples plus sample starting index must fit within the 200 recorded continuations.');
   if(stride<2 || stride>64) throw new Error('Checkpoint spacing must be 2 to 64 tokens.');
   if(shift<1 || shift>=stride) throw new Error('The second-pass shift must be smaller than the spacing.');
   if(start<0 || start>=end || end>lastToken) throw new Error(`Choose a region between token 0 and ${lastToken}.`);

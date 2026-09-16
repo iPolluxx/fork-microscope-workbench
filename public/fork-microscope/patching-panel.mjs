@@ -1,3 +1,5 @@
+// generated: Codex, fork-microscope-revamp-ASTRA-BRIEF.md — shared operation accounting.
+import {startEvidenceOperation,budgetScopeNote} from './scoped-operation.mjs';
 // Controlled activation interventions; saved evidence remains readable without a GPU.
 import {completedDraws, outcomePair, pairFocus} from './lens-panel.mjs';
 import {saveJSON} from './download.mjs';
@@ -25,7 +27,7 @@ export function patchDefaultPair(record, checkpoint, selectedPair) {
 export function mountPatching(host, context) {
   host.classList.add('patching-panel');
   host.innerHTML = `<p>Test a specific internal state by copying it from one saved trajectory (the donor) into another (the recipient). Three fresh groups show the original recipient, a self-copy control, and the donor patch.</p>
-    <p class="micro">This is an optional experiment after reading the traces. A changed outcome measures the effect of this intervention; it does not explain the entire original decision.</p>
+    <p class="micro">This is an optional experiment after reading the responses. A changed outcome measures the effect of this intervention; it does not explain the entire original decision.</p>
     <details data-config><summary>Set up an activation test</summary>
       <p data-capability role="status">Connect compute to check model compatibility. Saved tests are available below.</p>
       <div class="patching-grid">
@@ -87,7 +89,7 @@ export function mountPatching(host, context) {
     artifact=data;$('[data-download]').disabled=false;const out=$('[data-output]');out.replaceChildren();
     put('p',`${data.status} · ${data.id}`,out);put('p',data.request?.selection_rationale??'',out);
     const control=data.summary?.identity_control;
-    put('p',control?`Self-copy control: ${control.exact_matches}/${control.draws_compared} draws match the baseline exactly. ${control.passed?'Control passed for these draws.':'Do not interpret a patch effect until this control is resolved.'}`:'Controls are not complete yet.',out);
+    put('p',control?`Self-copy control: ${control.exact_matches}/${control.draws_compared} continuations match the baseline exactly. ${control.passed?'Control passed for these continuations.':'Do not interpret a patch effect until this control is resolved.'}`:'Controls are not complete yet.',out);
     if(data.error)put('p',data.error,out);if(data.control_warning)put('p',data.control_warning,out);
     const table=put('table','',out);table.className='patching-results';const head=put('tr','',put('thead','',table));
     for(const title of ['Outcome','Baseline','Self-copy','Donor patch'])put('th',title,head);
@@ -95,7 +97,7 @@ export function mountPatching(host, context) {
     for(const label of labels){const row=put('tr','',tbody);put('th',label,row);for(const arm of ['baseline','identity','patched']){const group=observations.filter(o=>o.arm===arm),n=group.filter(o=>o.label===label).length;put('td',`${n}/${group.length}${group.length?' · '+(100*n/group.length).toFixed(0)+'%':''}`,row);}}
     put('p',`${data.summary?.capped??0} continuations reached the length cap. Other includes unresolved answers. These observed differences are exploratory; no significance test is implied.`,out);
     const chooser=put('select','',out);chooser.setAttribute('aria-label','Saved activation test continuation');
-    observations.forEach((o,i)=>chooser.add(new Option(`${o.arm} · draw ${o.draw+1} · ${o.label} · ${o.stop_reason}`,String(i))));
+    observations.forEach((o,i)=>chooser.add(new Option(`${o.arm} · continuation ${o.draw+1} · ${o.label} · ${o.stop_reason}`,String(i))));
     const text=put('pre','',out);text.className='recorded-text';
     function show(){const o=observations[Number(chooser.value)];text.textContent=o?`RECIPIENT PREFIX\n${data.prefixes.recipient.prefix_text}\n\nFRESH CONTINUATION\n${o.continuation_text}`:'No completed continuations have been saved.';}
     chooser.onchange=show;show();
@@ -117,8 +119,8 @@ export function mountPatching(host, context) {
     }catch(e){status(`${e.message} Reconnect and refresh saved tests; the worker may still be running.`);activeJob=null;}
     finally{if(!activeJob){$('[data-stop]').hidden=true;$('[data-run]').disabled=true;}}
   }
-  $('[data-run]').onclick=async()=>{try{const q=request();if(JSON.stringify(q)!==preview)throw new Error('Preview the current settings first.');$('[data-run]').disabled=true;const job=await api('patch',q);activeJob=job.job_id;$('[data-stop]').hidden=false;status('Activation test started.');poll();}catch(e){status(e.message);}};
-  $('[data-stop]').onclick=async()=>{try{await api('stop',{job_id:activeJob});status('Stop requested. Completed draws remain saved.');}catch(e){status(e.message);}};
+  $('[data-run]').onclick=async()=>{try{const q=request();if(JSON.stringify(q)!==preview)throw new Error('Preview the current settings first.');$('[data-run]').disabled=true;const job=await startEvidenceOperation('patch',q);activeJob=job.job_id;$('[data-stop]').hidden=false;status('Activation test started.');poll();}catch(e){status(e.message);}};
+  $('[data-stop]').onclick=async()=>{try{await api('stop',{job_id:activeJob});status('Stop requested. Completed continuations remain saved.');}catch(e){status(e.message);}};
   $('[data-refresh]').onclick=()=>saved().catch(e=>status(e.message));
   $('[data-saved]').onchange=async()=>{
     const identifier=$('[data-saved]').value,current=revision;

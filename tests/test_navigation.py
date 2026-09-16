@@ -1,3 +1,4 @@
+# generated: Codex, fork-microscope-revamp-ASTRA-BRIEF.md — demo entry and shared area routes.
 """Public routes must retain the same cross-page navigation, even without JS."""
 from html.parser import HTMLParser
 from pathlib import Path
@@ -45,4 +46,5 @@ def test_source_and_built_routes_share_navigation(tmp_path):
             assert [text for attrs, text in parser.links if attrs.get('aria-current') == 'page'] == [current]
             assert parser.brand == '/workspace.html'
     assert (target/'app-navigation.css').is_file()
-    assert (target/'index.html').read_text() == (target/'workspace.html').read_text()
+    assert 'observatory.html?demo=attendance' in (target/'index.html').read_text()
+    assert (target/'demo-attendance.json').is_file()

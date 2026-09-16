@@ -1,4 +1,5 @@
 """Build only publishable static assets and notices. Reject stale or symlinked output."""
+# generated: Codex — fork-microscope-revamp-ASTRA-BRIEF.md, Stage C additions.
 from pathlib import Path
 import hashlib
 import json
@@ -12,7 +13,7 @@ ASSETS=('workspace.html workspace.mjs workspace.css live.html live.js live.css '
         'compare.html compare.mjs compare.css worker-connection.js method-credit.js refinement-panel.mjs '
         'refinement-panel.css investigation-panel.mjs investigation-panel.css lens-panel.mjs lens-panel.css patching-panel.mjs patching-panel.css journey.css walkthrough.mjs evidence-import.mjs graph-evidence.mjs passes.mjs '
         'math.mjs plotly.min.js app.js styles.css job-progress.mjs response-review.mjs download.mjs').split()
-ASSETS = [*ASSETS, 'compute-readiness.mjs', 'workflow-panel.mjs', 'guide.html', 'guide.css', 'guide.mjs', 'app-navigation.css']
+ASSETS = [*ASSETS, 'compute-readiness.mjs', 'workflow-panel.mjs', 'guide.html', 'guide.css', 'guide.mjs', 'app-navigation.css', 'offline-evidence.mjs', 'classification.mjs', 'demo-attendance.json', 'selection.mjs', 'scoped-operation.mjs', 'request-retry.mjs', 'investigation-shell.mjs', 'investigation-shell.css', 'investigation-workbench.mjs']
 
 NOTICES={'LICENSE':ROOT/'LICENSE','THIRD-PARTY.md':ROOT/'THIRD-PARTY.md',
          'plotly-LICENSE.txt':ROOT/'licenses'/'plotly-MIT.txt'}
@@ -36,7 +37,7 @@ def build(destination=None):
         stage=Path(staging)
         for name in ASSETS:shutil.copy2(source/name,stage/name)
         shutil.copy2(source/'released-data.html',stage/'released-data.html')
-        shutil.copy2(source/'workspace.html',stage/'index.html')
+        (stage/'index.html').write_text('''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fork Microscope — open the example investigation</title><meta http-equiv="refresh" content="0;url=observatory.html?demo=attendance"><body><p><a href="observatory.html?demo=attendance">Explore the attendance investigation — no compute needed</a></p><p><a href="workspace.html">Open your workspace</a></p></body></html>''',encoding='utf-8')
         for name,path in NOTICES.items():shutil.copy2(path,stage/name)
         notice=stage/'THIRD-PARTY.md'
         notice.write_text(notice.read_text().replace('licenses/plotly-MIT.txt','plotly-LICENSE.txt'))
