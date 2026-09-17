@@ -163,7 +163,7 @@ fork-microscope investigation export-run RUN_ID investigation.json
 fork-microscope investigation import investigation.json
 ```
 
-The same file imports through Explorer's **Import run** button. The bundle contains
+The same file imports through Explorer's **Import evidence** button. The bundle contains
 all included runs, parent links, exact token IDs, raw continuations, classifications,
 fits, model and sampling provenance, selected readouts, and coordinator rationale
 when exported from a workflow job. Explorer keeps each run individually navigable.

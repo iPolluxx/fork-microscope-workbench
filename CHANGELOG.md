@@ -1,6 +1,23 @@
 # Changelog
 
-## Current main — package layout and machine pairing
+## Documentation and bounded audit — 2026-09-17
+
+- Reproducible single-case reconstruction audit with input/output arrays, pinned
+  runtime source checks, selectable checkpoints/sample count and negative tests.
+- Agent documentation distinguishes the repository CLI/API, separately packaged
+  private MCP companion, and browser pairing. No public MCP endpoint is added.
+- Corrected import/transfer instructions and current Setup navigation names.
+- MCP companion validation is reported separately from this repository and from
+  real-model experiments; see [its guide](docs/agents/MCP.md).
+
+## Investigation workflow — 2026-09-15
+
+- Setup → Explore → Inspect & Test with persistent investigation selection.
+- Saved responses, bounded outcome search, manual operations, comparisons and
+  conclusions; complete v3 bundles retain earlier v1/v2 compatibility.
+- Offline evidence browsing with explicit transfer to compute before new work.
+
+## Earlier implementation — package layout and machine pairing
 
 - Python application in `src/fork_microscope/`; Python and JavaScript tests in `tests/`.
 - Background machine startup, expiring one-time pairing and optional temporary HTTPS.
@@ -40,8 +57,9 @@ These changes are on `main`; the package remains `0.1.0b1` (no new tagged releas
   invalidation on model/parameter/device changes.
 - Documentation and isolated installed-CLI validation for worker upgrades.
 
-Activation patching, trained probes, automatic VM provisioning and guaranteed
-compute savings are not implemented. Update the worker as well as the dashboard.
+At that revision, activation patching, trained probes, automatic VM provisioning
+and guaranteed compute savings were not implemented. Controlled patches were added
+later, as recorded above; the other limitations remain. Update the worker as well as the dashboard.
 
 ## 0.1.0-beta.1 — 2026-09-10
 

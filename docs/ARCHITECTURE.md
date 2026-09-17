@@ -1,4 +1,4 @@
-<!-- generated: Codex — documentation updated for the investigation revamp, 2026-09-15; authorized by Isaiah. -->
+<!-- generated: Codex — documentation reviewed for current workflow and agent companion, 2026-09-17; authorized by Isaiah. -->
 # Architecture
 
 [Documentation index](README.md)
@@ -110,3 +110,12 @@ automatically inherit an older checkout’s library; use evidence bundle import.
 Machine service credentials live outside the checkout under the user’s private
 `~/.local/state/fork-microscope/machine-PORT/` directory. Stop an existing service
 before using the same port from another checkout.
+
+### Optional private agent companion
+
+The separately packaged MCP companion uses local stdio → the existing
+`workflow_cli.Client` → an authenticated worker. Saved-file navigation uses the
+native `investigation_bundle.validate_bundle` and does not contact compute. Its
+profile stores evidence, exports, credentials and job ownership separately from
+browser storage. No MCP server is started by `fork-microscope serve`, and no
+companion implementation is bundled in this checkout. See [MCP scope](agents/MCP.md).

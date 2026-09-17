@@ -16,11 +16,14 @@ The last command writes `outputs/math-checks.json`, which is ignored by Git. It 
 
 The expected upstream commit is `d32fed8d4162a4888291c4b3a38b059727c85a41`. The audit requires an unmodified checkout and forces the reference ruptures segmentation path with `OTRECON_FORCE_RUPTURES=1`.
 
+For a single released case with exact input/output receipts and loaded-source
+checks, see [Reproduce one reconstruction comparison](RECONSTRUCTION-AUDIT.md).
+
 ## What is checked
 
 - SHA-256 checks for all 203 released stores and recomputation of their recorded weighted reference curves.
 - Four released-data cases: Llama and DeepSeek rows 12 and 39, each reduced to at most 24 checkpoints and 20 mixture draws per checkpoint. These are deliberately bounded integration cases, not the full paper evaluation grid.
-- Exact agreement between the live reconstruction and the pristine baseline on raw frequencies, selected cross-validation parameters and scores, fitted probabilities and breakpoint intervals.
+- Exact agreement between the live reconstruction and the pristine baseline on raw frequencies, selected cross-validation parameters and best score, fitted probabilities, marginal band arrays and breakpoint intervals. The selected CV candidate count is also checked; the entire score map is not compared.
 - Independent calculation of the Gaussian pooling formula with the symmetric Dirichlet prior, agreeing within floating-point tolerance.
 - The multinomial segment cost checked against its analytic expression, plus a small exhaustive legal-partition comparison with PELT.
 

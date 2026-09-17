@@ -1,6 +1,6 @@
 # GPU worker container
 
-The image contains the CUDA environment, dashboard, worker and pinned upstream checkout. It starts **without a selected model and without downloading weights**. Use Configure to inspect and attach a native model.
+The image contains the CUDA environment, dashboard, worker and pinned upstream checkout. It starts **without a selected model and without downloading weights**. Use Setup to inspect and attach a native model.
 
 ## Build and start
 
@@ -10,7 +10,7 @@ Build from the application source directory:
 docker build -t fork-microscope:worker .
 ```
 
-Choose hardware for your model and continuation context. The earlier Muse profile ran on an A100 80GB; this is evidence for that profile, not a universal hardware requirement. Native model eligibility and weight-memory estimates are available in Configure. See [validation scope](../VALIDATION.md) for tested behavior and GPU limitations.
+Choose hardware for your model and continuation context. The earlier Muse profile ran on an A100 80GB; this is evidence for that profile, not a universal hardware requirement. Native model eligibility and weight-memory estimates are available in Setup. See [validation scope](../VALIDATION.md) for tested behavior and GPU limitations.
 
 The entrypoint configures SSH from `SSH_PUBLIC_KEY` (or RunPod's `PUBLIC_KEY`), runs the environment check, links result and workspace storage, and serves on loopback port 8767. For a provider VM, expose SSH and forward the dashboard port:
 

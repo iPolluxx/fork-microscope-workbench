@@ -110,3 +110,11 @@ Earlier development included CPU smoke runs and Muse GPU runs. Those private rec
 A model's architecture, native chat format, EOS handling, precision, generation defaults, available memory and token caps affect results. Exact saved IDs and settings improve traceability; cross-device bitwise reproducibility is not promised. Mention matching can misclassify rejected or incidental answer text. Statistical smoothing cannot correct invalid outcome labels.
 
 The hosted interface is static; each connected worker is a single-owner service, not an account-isolated multi-tenant backend. See [Architecture](docs/ARCHITECTURE.md), [Security](SECURITY.md) and [Third-party notices](THIRD-PARTY.md) before deployment.
+
+## Separate agent companion — 2026-09-17
+
+A private MCP companion and reviewed paper skill were built and validated outside
+this application checkout. They are not installed by the commands above or shipped
+as part of this repository. See [availability, test scope and privacy](docs/agents/MCP.md).
+Its simulated-worker lifecycle and saved-evidence tests do not constitute additional
+GPU validation or change the application's single-owner worker boundary.

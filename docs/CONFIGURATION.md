@@ -171,3 +171,13 @@ The configuration validator and runtime checks are authoritative if documentatio
 and a worker version differ. Do not silently remove budget or compatibility checks
 to get a request accepted. There is no provider deployment or shutdown setting in
 this workflow.
+
+## MCP profiles and settings
+
+The optional [private MCP companion](agents/MCP.md) accepts this automatic
+workflow configuration and adds local profile ceilings for time, samples and
+generated tokens. Its Settings tool exposes the pinned source field reference.
+Worker origin, token file and private evidence directories are profile settings,
+not fields to put in an investigation JSON or share in a prompt. Browser pairing
+does not configure an MCP profile. The companion is distributed separately from
+this checkout.

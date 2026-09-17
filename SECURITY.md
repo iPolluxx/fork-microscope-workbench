@@ -29,3 +29,17 @@ read-only viewing. Generating another code invalidates the prior unused code;
 it does not rotate the persistent token or revoke already paired clients.
 The optional temporary Cloudflare tunnel terminates TLS at Cloudflare. It is
 not an end-to-end private relay or a permanent connection identity.
+
+## Optional MCP companion
+
+The [separate MCP companion](docs/agents/MCP.md) runs locally over stdio with a
+fixed private profile. Tools cannot select another profile or worker. Agents
+sharing a profile share its evidence. Profiles are not an OS sandbox: mutually
+untrusted users need separate OS accounts/containers and separate workers/tokens.
+The worker remains single-owner; its bearer token authorizes access outside MCP
+too. No shared hosted authentication or tenant isolation is added to this app.
+
+Evidence sent to an agent can be processed by that agent's model provider; local
+storage does not mean the content never leaves the machine. Never commit profile
+files, worker tokens, ownership ledgers or private evidence. Published demo
+investigations are separate from private profiles.

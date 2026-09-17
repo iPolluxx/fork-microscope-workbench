@@ -15,7 +15,7 @@ All Python modules listed below are in `src/fork_microscope/`; all test files ar
 - `investigation.py`, `lens_integration.py`: controlled text edits, exact-token internal readouts and bounded activation reuse.
 - `workspace_store.py`: prompt sets and batch snapshots.
 - `microscope_server.py`, `worker_connection.py`: worker API and access boundary.
-- `public/fork-microscope/`: Workspace, Configure, Explore and Compare.
+- `public/fork-microscope/`: Setup → Explore → Inspect & Test, plus Workspace, Guide and compatibility pages.
 - `docs/ARCHITECTURE.md`: components, ownership and measurement contracts.
 - `vendor/forking-fast`: pinned upstream submodule; do not edit it as part of an unrelated change.
 

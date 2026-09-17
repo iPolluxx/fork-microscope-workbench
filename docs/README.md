@@ -1,4 +1,4 @@
-<!-- generated: Codex — documentation updated for the investigation revamp, 2026-09-15; authorized by Isaiah. -->
+<!-- generated: Codex — documentation reviewed for current workflow and agent companion, 2026-09-17; authorized by Isaiah. -->
 # Fork Microscope documentation
 
 Start with the task you want to do. You do not need to read every document.
@@ -8,12 +8,14 @@ Start with the task you want to do. You do not need to read every document.
 | Understand the interface before connecting hardware | Open **Guide** from Workspace (or `/guide.html` on your running dashboard). It works without compute. |
 | Connect my computer or a GPU VM and run one prompt | [Your first session](GETTING-STARTED.md) |
 | Run a complete investigation from a CLI or agent | [Investigation workflow](INVESTIGATION-WORKFLOW.md) |
+| Connect an MCP-capable agent to private evidence and compute | [MCP companion: installation scope and privacy](agents/MCP.md) |
 | Give a fresh agent the commands and context | [Agent operating guide](agents/OPERATING-GUIDE.md) → [every automated configuration field](CONFIGURATION.md) |
 | Understand checkpoint counts, curves and comparisons | [Method reference](REFERENCE.md) |
 | Inspect or collect a Jacobian lens readout | [Lens guide](JACOBIAN-LENS.md) |
 | Choose NNsight capture or test an internal-state replacement | [Internal inspection and controlled patches](NNSIGHT-INTEGRATION.md) |
 | Edit text and compare fresh continuations | [Interventions and investigations](INTERPRETING-RESULTS.md) |
 | Host the interface or troubleshoot remote connections | [Hosted dashboard](HOSTED-DASHBOARD.md) |
+| Reproduce an upstream/application reconstruction comparison | [Single-case audit](RECONSTRUCTION-AUDIT.md) |
 | Check numerical validation and known limits | [Math validation](MATH-VALIDATION.md) and [validation record](../VALIDATION.md) |
 | Contribute to the implementation | [Architecture](ARCHITECTURE.md) and [contributing](../CONTRIBUTING.md) |
 
