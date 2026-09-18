@@ -73,3 +73,7 @@ First portfolio/source beta of Fork Microscope.
 - Portable prompt/evidence exports, CPU verification and static-only Cloud Run deployment.
 
 Scope: Linux checkout installation; supported native model adapters. No public bundled GPU image while upstream distribution permissions are unresolved. No automatic VM provisioning, general model compatibility, executed token edits, activation interventions or automatic partial-draw resume.
+
+## 2026-09-18 — Optional private MCP companion
+
+Published the Paper2Agent-generated nine-tool integration under `integrations/mcp/`, with separate pinned setup, private profile instructions and portable smoke/privacy tests. No private investigations, credentials or extracted paper assets are included.

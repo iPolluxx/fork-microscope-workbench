@@ -4,23 +4,9 @@
 
 ## Availability: repository versus companion
 
-This repository supplies the worker, dashboard, CLI and authenticated investigation
-API. Those work without MCP. A separate Paper2Agent conversion has produced and
-locally validated a nine-tool MCP package plus a reviewed *Forking Fast* paper
-skill. **The companion is not currently shipped in this repository or a public
-GitHub release.** A clone, `pip install .`, or browser pairing does not install it.
-There is no public MCP URL on the hosted dashboard.
+This repository includes the optional [MCP companion](../../integrations/mcp/README.md) created with Paper2Agent. It supplies nine tools for private saved evidence and bounded worker workflows. Follow its [installation guide](../../integrations/mcp/USAGE.md).
 
-If you have the companion archive, follow its included `USAGE.md` and pinned
-requirements. It supplies `src/configure.py` and
-`src/fork_microscope_workbench_mcp.py`; these are companion paths, not paths in
-this checkout. The combined agent archive also contains
-`skill/forking-fast-paper/`, installed separately in the agent's skill directory.
-The MCP-only archive does not include the paper skill.
-
-Until you have that package, an agent can use the fully documented
-[CLI/API workflow](../INVESTIGATION-WORKFLOW.md) from this repository. Do not
-invent an MCP install command or treat the website address as an MCP endpoint.
+A clone includes the code, but `pip install .` and browser pairing do not install or configure MCP. Install its separate pinned runtime and initialize a private profile. There is no public MCP URL on the hosted dashboard. The separately prepared full paper reading skill is not redistributed here; consult the original paper and workbench method guides.
 
 ## What the companion does
 
@@ -95,8 +81,7 @@ importing bundles.
 The companion was independently checked on 2026-09-17 with 26 module tests and
 16 real stdio acceptance cases across all nine tools in development, a clean
 runtime, and an extracted ZIP. Saved-evidence exports were compared byte-for-byte;
-worker exports were compared with native coordinator payloads. These are separate
-companion tests, not tests bundled with this application checkout.
+worker exports were compared with native coordinator payloads. Those full conversion tests are separate from this checkout. Portable profile/privacy and nine-tool discovery smoke tests ship in `integrations/mcp/tests/`.
 
 Lifecycle tests used the real pinned coordinator and an authenticated local HTTP
 fixture with the upstream simulated model service. They did **not** execute a

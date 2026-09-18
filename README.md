@@ -144,7 +144,7 @@ These checks use CPU or saved data; they do not start a GPU VM. Read [CONTRIBUTI
 
 Run a bounded scan → refinement → optional J-lens workflow from the CLI or an agent, or work interactively through Setup → Explore → Inspect & Test. Export the complete investigation, including saved responses, comparisons, conclusions and collected artifacts, as one file. See [the investigation workflow guide](docs/INVESTIGATION-WORKFLOW.md).
 
-For agents: begin with the [operating guide](docs/agents/OPERATING-GUIDE.md) and [complete workflow settings reference](docs/CONFIGURATION.md). Offline discovery: `fork-microscope investigation settings`. A separately packaged [private MCP companion](docs/agents/MCP.md) provides evidence browsing and bounded workflow tools. It is not installed by the checkout commands above; the hosted dashboard is not an MCP endpoint.
+For agents: begin with the [operating guide](docs/agents/OPERATING-GUIDE.md) and [complete workflow settings reference](docs/CONFIGURATION.md). Offline discovery: `fork-microscope investigation settings`. The optional [private MCP companion](docs/agents/MCP.md), included under `integrations/mcp/`, provides evidence browsing and bounded workflow tools. It is not installed by the checkout commands above; the hosted dashboard is not an MCP endpoint.
 
 ## Repository layout
 

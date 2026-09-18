@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+profile.json
+worker-token
+evidence/
+exports/
+state/

@@ -113,7 +113,7 @@ before using the same port from another checkout.
 
 ### Optional private agent companion
 
-The separately packaged MCP companion uses local stdio → the existing
+The optional MCP companion in `integrations/mcp/` uses local stdio → the existing
 `workflow_cli.Client` → an authenticated worker. Saved-file navigation uses the
 native `investigation_bundle.validate_bundle` and does not contact compute. Its
 profile stores evidence, exports, credentials and job ownership separately from
