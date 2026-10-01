@@ -156,7 +156,7 @@ class HostedService:
             active=tx.get('owners',uid)
             if active:
                 old=tx.get('sessions',active['session_id'])
-                if old and old['observed_state'] not in TERMINAL: raise HostedError(409,'An active session already exists')
+                if old and not (old['observed_state']=='terminated' and old.get('cleanup_verified',False)): raise HostedError(409,'An active session or unverified cleanup already exists')
             sid=uuid.uuid4().hex
             s={'id':sid,'owner_uid':uid,'desired_state':'running','observed_state':'requested','created_at':now,'expires_at':now+q['max_duration_seconds'],'quote':q,'request_name':'fm-'+sid,'storage_mode':mode,'epoch':0,'seq':-1,'lease_until':0}
             conn=tx.get('connections',uid+'_runpod')

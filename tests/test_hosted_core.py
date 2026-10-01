@@ -160,3 +160,11 @@ def test_drive_automatic_termination_after_verified_export(setup):
     verified=[];s.artifact_verify=lambda *a:verified.append(a)
     s.report(report)
     assert verified and request(c,'sessions/'+sid,{},method='GET').json()['desired_state']=='terminated'
+
+def test_failed_session_blocks_replacement_until_provider_cleanup_verified(setup):
+    s,c,_=setup;sid=session(c)
+    s.store.transaction(lambda tx:tx.set('sessions',sid,dict(tx.get('sessions',sid),observed_state='failed')))
+    body={'quote_id':'quote-alice','storage_mode':'device','acknowledge_device_loss':True}
+    assert request(c,'sessions',body,key='replacement').status_code==409
+    s.store.transaction(lambda tx:tx.set('sessions',sid,dict(tx.get('sessions',sid),observed_state='terminated',cleanup_verified=True)))
+    assert request(c,'sessions',body,key='replacement').status_code==200
