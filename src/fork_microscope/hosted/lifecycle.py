@@ -13,7 +13,7 @@ from .provider import CreateUncertain, ProviderError
 class Lifecycle:
     def __init__(self, provider_factory, *, worker_image, control_plane_url,
                  persist_before_create, worker_environment, clock=time.time, dashboard_origin=None,
-                 heartbeat_timeout_seconds=120):
+                 heartbeat_timeout_seconds=120, uncertain_create_grace_seconds=300):
         if not re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", worker_image):
             raise ValueError("Immutable worker image digest required")
         url = urlsplit(control_plane_url)
@@ -23,6 +23,9 @@ class Lifecycle:
         if origin.scheme != "https" or not origin.hostname or origin.username or origin.password or origin.query or origin.fragment or origin.path not in {"", "/"}:
             raise ValueError("Configured HTTPS dashboard origin required")
         self.dashboard_origin = f"https://{origin.netloc}"
+        if type(uncertain_create_grace_seconds) is not int or uncertain_create_grace_seconds < 0:
+            raise ValueError("Invalid uncertain create grace")
+        self.uncertain_create_grace = uncertain_create_grace_seconds
         self.heartbeat_timeout = heartbeat_timeout_seconds
         self.provider_factory = provider_factory
         self.image = worker_image
@@ -42,10 +45,22 @@ class Lifecycle:
         heartbeat = session.get("worker_last_heartbeat_at", session.get("heartbeat_at"))
         if heartbeat is not None and state in {"ready", "running", "saving"} and now >= heartbeat + self.heartbeat_timeout:
             terminate, deadline_code = True, "worker_heartbeat_timeout"
-        provider = self.provider_factory(session)
+        if session.get('observed_state') == 'ready' and not session.get('has_started_job') and now >= session.get('idle_since', now) + 300:
+            terminate = True
         name = session["request_name"]
         if not re.fullmatch(r"fm-[a-zA-Z0-9_-]{8,120}", name):
             raise ValueError("Invalid managed request name")
+        try:
+            provider = self.provider_factory(session)
+            if provider is None:
+                raise ValueError("Controller credential unavailable")
+        except Exception:
+            # Credential lookup can fail independently of the provider API.
+            # Keep the owner resource fence and let the controller retry cleanup.
+            return {"desired_state": "terminated" if terminate else session.get("desired_state", "running"),
+                    "observed_state": "terminating" if terminate else session.get("observed_state", "provisioning"),
+                    "cleanup_verified": False, "cleanup_status": "credential_blocked",
+                    "error_code": "credential_unavailable", "manual_attention_required": True}
         try:
             pods = [pod for pod in provider.list_pods() if pod.get("name") == name]
             ref = session.get("provider_ref")
@@ -62,9 +77,15 @@ class Lifecycle:
                 remaining.extend(p for p in (provider.get_pod(pod["id"]) for pod in pods) if p)
                 # If a POST crashed, absence is not proof it will never appear.
                 uncertain = session.get("create_attempted") and not session.get("provider_ref") and not pods
+                attention = bool(uncertain and now >= session["expires_at"] + self.uncertain_create_grace)
                 return {"desired_state": "terminated", "observed_state": "terminating" if remaining or uncertain else "terminated",
                         "cleanup_verified_at": None if remaining or uncertain else now,
-                        **({"error_code": deadline_code} if deadline_code else {})}
+                        "cleanup_verified": not bool(remaining or uncertain),
+                        "uncertain_resource_fence": bool(uncertain),
+                        "manual_attention_required": attention,
+                        "cleanup_status": "manual_attention" if attention else "pending" if remaining or uncertain else "verified",
+                        **({"provider_ref": pods[0]["id"]} if pods else {}),
+                        "error_code": "create_outcome_manual_attention" if attention else deadline_code}
             if len(pods) > 1:
                 # All share this session's exact managed name. Delete on next tick.
                 return {"desired_state": "terminated", "observed_state": "terminating", "error_code": "duplicate_provider_name"}
@@ -79,7 +100,9 @@ class Lifecycle:
             if session.get("create_attempted"):
                 return {"observed_state": "provisioning", "error_code": "create_outcome_pending"}
             quote = session["quote"]
-            if now >= quote["expires_at"]:
+            # Quote freshness was approved at session acceptance, not at this
+            # asynchronous controller tick. Startup and absolute deadlines still apply.
+            if session.get("created_at", now) >= quote["expires_at"]:
                 return {"desired_state": "terminated", "observed_state": "failed", "error_code": "stale_quote"}
             env = self.environment(session)
             if any("RUNPOD" in key.upper() or "DRIVE" in key.upper() for key in env):
@@ -101,4 +124,5 @@ class Lifecycle:
             return {"provider_ref": pod["id"], "observed_state": "booting"}
         except ProviderError:
             return {"observed_state": "terminating" if terminate else session.get("observed_state", "provisioning"),
+                    "cleanup_verified": False, "cleanup_status": "provider_blocked",
                     "error_code": "provider_unavailable"}

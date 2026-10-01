@@ -1,5 +1,5 @@
 import unittest
-from fork_microscope.hosted.provider import RunPod, FakeRunPod, CreateUncertain
+from fork_microscope.hosted.provider import RunPod, FakeRunPod, CreateUncertain, ProviderError
 from fork_microscope.hosted.catalog import Catalog
 from fork_microscope.hosted.lifecycle import Lifecycle
 
@@ -38,7 +38,7 @@ class HostedProviderTests(unittest.TestCase):
         self.assertTrue(self.session["create_attempted"])
         self.tick()
         self.assertEqual(self.provider.creates, 1)
-        self.assertEqual(self.session["provider_ref"], "fake-1")
+        self.assertEqual(self.session["provider_ref"], "fake1")
 
     def test_deadline_delete_verified_retries(self):
         self.tick()
@@ -67,7 +67,7 @@ class HostedProviderTests(unittest.TestCase):
 
     def test_provider_running_is_not_worker_ready(self):
         self.tick()
-        self.provider.pods["fake-1"]["status"] = "RUNNING"
+        self.provider.pods["fake1"]["status"] = "RUNNING"
         self.tick()
         self.assertEqual(self.session["observed_state"], "booting")
 
@@ -94,9 +94,77 @@ class HostedProviderTests(unittest.TestCase):
     def test_device_port_and_dashboard_origin(self):
         self.session["destination"] = "device"
         self.tick()
-        pod = self.provider.pods["fake-1"]
+        pod = self.provider.pods["fake1"]
         self.assertEqual(pod["ports"], ["8780/http"])
         self.assertEqual(pod["env"]["FM_DASHBOARD_ORIGIN"], "https://controller.example")
+
+    def test_accepted_quote_survives_controller_delay(self):
+        self.session["created_at"] = 11
+        self.now = 131  # Accepted before expiry; provisioning occurs after expiry.
+        self.tick()
+        self.assertEqual(self.provider.creates, 1)
+        self.assertEqual(self.session["observed_state"], "booting")
+
+    def test_credential_failure_preserves_cleanup_fence(self):
+        def unavailable(session):
+            raise RuntimeError("private secret lookup error")
+        self.lifecycle.provider_factory = unavailable
+        self.session["create_attempted"] = True
+        self.now = 1811
+        self.tick()
+        self.assertEqual(self.session["observed_state"], "terminating")
+        self.assertEqual(self.session["error_code"], "credential_unavailable")
+        self.assertFalse(self.session["cleanup_verified"])
+        self.assertEqual(self.session["cleanup_status"], "credential_blocked")
+        self.assertNotIn("private", str(self.session))
+
+    def test_uncertain_create_escalates_but_keeps_watching(self):
+        self.session["create_attempted"] = True
+        self.now = 2111
+        self.tick()
+        self.assertTrue(self.session["manual_attention_required"])
+        self.assertTrue(self.session["uncertain_resource_fence"])
+        self.assertFalse(self.session["cleanup_verified"])
+        self.assertEqual(self.session["observed_state"], "terminating")
+        self.assertEqual(self.session["error_code"], "create_outcome_manual_attention")
+        # A late resource is still found and deleted; no new create is attempted.
+        self.provider.pods["latepod"] = {"id": "latepod", "name": "fm-session1", "status": "RUNNING"}
+        self.tick()
+        self.assertTrue(self.session["cleanup_verified"])
+        self.assertFalse(self.session["manual_attention_required"])
+        self.assertFalse(self.session["uncertain_resource_fence"])
+        self.assertEqual(self.session["observed_state"], "terminated")
+        self.assertEqual(self.provider.creates, 0)
+
+    def test_malformed_provider_reads_fail_with_redacted_error(self):
+        malformed = [None, [], {}, {"pods": None}, {"pods": ["secret"]},
+            {"pods": [], "pagination": None}, {"pods": [], "pagination": {"hasNextPage": "false"}},
+            {"pods": [{"id": "pod", "name": "fm-session1"}], "pagination": {"hasNextPage": True, "nextCursor": 7}}]
+        for value in malformed:
+            with self.subTest(value=value):
+                provider = RunPod("secret-key", lambda *args: (200, value))
+                with self.assertRaises(ProviderError):
+                    provider.list_pods()
+        for value in [None, [], {}, {"gpus": None}, {"gpus": ["secret"]},
+                      {"gpus": [{"id": "gpu", "memory": "24", "price": {"secure": .5}}]},
+                      {"gpus": [{"id": "gpu", "memory": 24, "price": {"secure": "secret"}}]}]:
+            with self.subTest(value=value):
+                with self.assertRaises(ProviderError):
+                    RunPod("secret-key", lambda *args: (200, value)).gpus()
+
+    def test_malformed_create_success_is_uncertain(self):
+        for value in [None, {}, {"id": "pod"}]:
+            with self.subTest(value=value):
+                with self.assertRaises(CreateUncertain):
+                    RunPod("secret-key", lambda *args: (201, value)).create_pod({"name": "fm-session1"})
+
+    def test_malformed_provider_blocks_cleanup_instead_of_confirming(self):
+        self.lifecycle.provider_factory = lambda s: RunPod("secret-key", lambda *args: (200, {"pods": []}))
+        self.now = 1811
+        self.tick()
+        self.assertEqual(self.session["observed_state"], "terminating")
+        self.assertFalse(self.session["cleanup_verified"])
+        self.assertEqual(self.session["error_code"], "provider_unavailable")
 
     def test_worker_image_and_origin_validation(self):
         with self.assertRaises(ValueError):
