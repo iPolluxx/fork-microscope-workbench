@@ -46,5 +46,6 @@ def test_source_and_built_routes_share_navigation(tmp_path):
             assert [text for attrs, text in parser.links if attrs.get('aria-current') == 'page'] == [current]
             assert parser.brand == '/workspace.html'
     assert (target/'app-navigation.css').is_file()
+    assert 'content="0;url=live.html"' in (target/'index.html').read_text()
     assert 'observatory.html?demo=attendance' in (target/'index.html').read_text()
     assert (target/'demo-attendance.json').is_file()

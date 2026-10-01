@@ -7,7 +7,7 @@ This is a research workbench with one owner or trusted team per worker. It is no
 - Loopback is the default. Setting a worker token enables token authentication even on loopback.
 - Network/origin access requires a URL-safe token of 32–512 characters. Hosted dashboards must be explicitly allowed by origin; wildcard origins are not accepted.
 - Use an SSH tunnel or an authenticated HTTPS endpoint. Keep the plain worker HTTP port private, and put request/time/resource limits on a public reverse proxy.
-- The hosted dashboard keeps the worker URL/token in tab session storage. Disconnect clears them. The operator of that website controls code that can access the token; use a host you trust.
+- The hosted dashboard defaults to tab session storage for the worker URL/token. Explicit **Remember this connection** opt-in stores both in localStorage across browser restarts; do not opt in on shared devices. Disconnect clears both stores and notifies other open same-origin tabs. The operator of that website controls code that can access the token; use a host you trust.
 - No provider API keys belong in the browser. Private-model authentication belongs on the worker. Keep runtime secrets out of Docker build arguments and Git.
 - Model loading requires native safetensors and disables custom remote code. These constraints reduce exposure; they do not certify arbitrary model files or third-party libraries as safe.
 - Model outputs and imported text are treated as data, not executable HTML or instructions. Exports can contain private prompt/response text; review them before sharing.

@@ -100,7 +100,8 @@ function actions(){const busy=state?.job.status==='running',modelReady=runtimeCo
   $('step-scan-state').textContent=budget?`${fmt(budget.total_rollouts)} planned samples`:'Checkpoints & budget';
 }
 async function refresh(){
-  const before=state,wasConnected=runtimeConnected;try{state=await api('status');runtimeConnected=true;}catch(e){runtimeConnected=false;$('connection-badge').textContent='Runtime unavailable';$('connection-badge').dataset.state='offline';$('phase').textContent='Connection lost — your runtime is not reachable.';$('connection-fix').hidden=false;$('connection-advice').textContent=connectionAdvice();actions();throw e;}
+  const before=state,wasConnected=runtimeConnected;try{state=await api('status');runtimeConnected=true;}catch(e){runtimeConnected=false;window.dispatchEvent(new CustomEvent('fork-compute-status',{detail:null}));$('connection-badge').textContent='Runtime unavailable';$('connection-badge').dataset.state='offline';$('phase').textContent='Connection lost — your runtime is not reachable.';$('connection-fix').hidden=false;$('connection-advice').textContent=connectionAdvice();actions();throw e;}
+  window.dispatchEvent(new CustomEvent('fork-compute-status',{detail:state}));
   $('connection-badge').textContent=state.job.status==='running'?'Runtime working':'Runtime connected';$('connection-badge').dataset.state='ready';$('connection-fix').hidden=state.job.status!=='error';
   if(!wasConnected&&state.job.status!=='error')error();if(!setupInitialized)showSetupStep(state.base?'scan':state.model?'prompt':'model');
   actions();$('phase').textContent=state.job.phase;$('progress-detail').textContent=jobProgress(state.job);$('progress').max=state.job.total||1;$('progress').value=state.job.completed||0;if(state.job.status==='running'&&!state.job.total)$('progress').removeAttribute('value');

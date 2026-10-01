@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const source=fs.readFileSync(new URL('../public/fork-microscope/worker-connection.js',import.meta.url),'utf8');
 function browser(){
   const peers=[];
-  return function tab(origin,saved=null,httpStatus=200){
+  return function tab(origin,saved=null,httpStatus=200,remembered=null){
     const storage=new Map(saved?[['fork-worker-session-v1',JSON.stringify(saved)]]:[]),calls=[];
     class Channel {
       constructor(name){this.name=name;peers.push(this);this.origin=origin;}
@@ -14,6 +14,7 @@ function browser(){
     }
     const location=new URL(origin);
     const context={URL,Headers,Event,setTimeout,clearTimeout,BroadcastChannel:Channel,location,
+      localStorage:{getItem:k=>remembered?JSON.stringify(remembered):null,removeItem(){}},
       sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},
       document:{readyState:'loading',addEventListener(){}},
       fetch:async(url,options)=>{calls.push({url,options});return {status:httpStatus};},dispatchEvent(){}};
@@ -45,4 +46,13 @@ test('normal local viewer needs no saved tab credentials',async()=>{
 test('authentication failure explains reconnection rather than missing evidence',async()=>{
   const fresh=browser()('https://dashboard.example',{url:'https://worker.example',token:'old'},401);
   await assert.rejects(fresh.context.workerFetch('/api/live/runs'),/saved runs have not been deleted/);
+});
+
+test('explicitly remembered connection survives a new browser session',async()=>{
+ const remembered={url:'https://worker.example',token:'test-remembered'};
+ const fresh=browser()('https://dashboard.example',null,200,remembered);
+ await fresh.context.computeFetch('/api/live/runs');
+ assert.equal(fresh.calls[0].url,'https://worker.example/api/live/runs');
+ assert.equal(fresh.calls[0].options.headers.get('Authorization'),'Bearer test-remembered');
+ assert.equal(fresh.calls[0].options.redirect,'error');
 });

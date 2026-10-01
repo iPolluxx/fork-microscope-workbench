@@ -1,5 +1,17 @@
 # Changelog
 
+## Portfolio candidate — 2026-10-01 (not yet deployed)
+
+- Prompt-led home with a single Run investigation action using the existing
+  durable coordinator; model/revision are shown before execution.
+- Collapsed advanced settings, sequential status, cancellation, export, and
+  safe recovery of an uncertain start request on the same worker.
+- Compute heartbeat and explicit trusted-browser connection persistence.
+- Worker-result links no longer inherit a previous browser-demo source.
+- Real saved attendance evidence figure, updated walkthrough and user-test kit.
+- No new paid/model execution or human usability study in this pass.
+
+
 ## Documentation and bounded audit — 2026-09-17
 
 - Reproducible single-case reconstruction audit with input/output arrays, pinned

@@ -74,7 +74,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self.json_response(401,{'error':'Connect using this worker’s access token and an explicitly allowed dashboard origin.'})
         if not self.access().remote and self.headers.get('Host','') not in {f'127.0.0.1:{self.server.server_port}',f'localhost:{self.server.server_port}'}:
             return self.json_response(403,{'error':'Use the localhost address.'})
-        if parsed.path in ("/", "/index.html"): self.path = "/workspace.html"
+        if parsed.path in ("/", "/index.html"): self.path = "/live.html"
         if parsed.path.startswith("/api/live/"):
             try:
                 if parsed.path == '/api/live/response':
@@ -147,7 +147,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json_response(400, {"error": str(exc)})
             except Exception:
                 return self.json_response(500, {"error": "Reconstruction failed for these settings. Try a wider region."})
-        if parsed.path not in ("/", "/index.html", "/released-data.html", "/app.js", "/math.mjs", "/passes.mjs", "/graph-evidence.mjs", "/observatory.html", "/observatory.mjs", "/refinement-panel.mjs", "/refinement-panel.css", "/investigation-panel.mjs", "/investigation-panel.css", "/lens-panel.mjs", "/lens-panel.css", "/patching-panel.mjs", "/patching-panel.css", "/journey.css", "/walkthrough.mjs", "/evidence-import.mjs", "/observatory.css", "/observatory-base.css", "/styles.css", "/plotly.min.js", "/live.html", "/live.js", "/compute-readiness.mjs", "/live.css", "/workspace.html", "/workspace.mjs", "/workspace.css", "/compare.html", "/compare.mjs", "/compare.css", "/worker-connection.js", "/method-credit.js", "/job-progress.mjs", "/response-review.mjs", "/download.mjs", "/workflow-panel.mjs", "/guide.html", "/guide.css", "/guide.mjs", "/app-navigation.css", "/request-retry.mjs", "/scoped-operation.mjs", "/classification.mjs", "/offline-evidence.mjs", "/demo-attendance.json", "/selection.mjs", "/investigation-shell.mjs", "/investigation-shell.css", "/investigation-workbench.mjs"):
+        if parsed.path not in ("/", "/index.html", "/released-data.html", "/app.js", "/math.mjs", "/passes.mjs", "/graph-evidence.mjs", "/observatory.html", "/observatory.mjs", "/refinement-panel.mjs", "/refinement-panel.css", "/investigation-panel.mjs", "/investigation-panel.css", "/lens-panel.mjs", "/lens-panel.css", "/patching-panel.mjs", "/patching-panel.css", "/journey.css", "/walkthrough.mjs", "/evidence-import.mjs", "/observatory.css", "/observatory-base.css", "/styles.css", "/plotly.min.js", "/live.html", "/live.js", "/quick-investigation.mjs", "/quick-investigation-config.mjs", "/quick-investigation.css", "/compute-readiness.mjs", "/live.css", "/workspace.html", "/workspace.mjs", "/workspace.css", "/compare.html", "/compare.mjs", "/compare.css", "/worker-connection.js", "/method-credit.js", "/job-progress.mjs", "/response-review.mjs", "/download.mjs", "/workflow-panel.mjs", "/guide.html", "/guide.css", "/guide.mjs", "/app-navigation.css", "/request-retry.mjs", "/scoped-operation.mjs", "/classification.mjs", "/offline-evidence.mjs", "/demo-attendance.json", "/selection.mjs", "/investigation-shell.mjs", "/investigation-shell.css", "/investigation-workbench.mjs"):
             return self.send_error(404)
         super().do_GET()
 

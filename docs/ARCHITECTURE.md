@@ -45,7 +45,7 @@ Python modules below live in `src/fork_microscope/`. All tests live in `tests/`.
 
 ## Hosting and ownership
 
-The hosted dashboard is static. Multiple visitors can use it while connecting directly to their own worker addresses; the static host does not run models or store their run archives. Worker credentials are held in browser session storage and sent to the selected worker. Remote workers require access protection, an appropriate allowed origin and a browser-reachable HTTPS endpoint; follow the [connection guide](HOSTED-DASHBOARD.md).
+The hosted dashboard is static. Multiple visitors can use it while connecting directly to their own worker addresses; the static host does not run models or store their run archives. Worker credentials default to browser session storage, with explicit trusted-browser persistence available; they are sent only to the selected worker. Remote workers require access protection, an appropriate allowed origin and a browser-reachable HTTPS endpoint; follow the [connection guide](HOSTED-DASHBOARD.md).
 
 A worker is a **single-owner compute service**, with shared state for its attached model, jobs and files. It is not a multi-tenant backend with per-user accounts, independent authorization or isolated job storage. Giving several people the same worker token gives them access to that worker. One owner per worker is the supported deployment boundary.
 
@@ -119,3 +119,16 @@ native `investigation_bundle.validate_bundle` and does not contact compute. Its
 profile stores evidence, exports, credentials and job ownership separately from
 browser storage. No MCP server is started by `fork-microscope serve`, and no
 companion implementation is bundled in this checkout. See [MCP scope](agents/MCP.md).
+
+## Prompt-led entry
+
+`quick-investigation.mjs` builds the existing validated workflow configuration and
+submits `workflow-start` to the authenticated compute transport. It does not run
+a second generation loop. Pending requests and active job pointers are scoped to
+the worker URL; uncertainty after a network failure preserves the request ID.
+`quick-investigation-config.mjs` holds tested, pure configuration/allowance helpers.
+The worker remains responsible for durable jobs, budget reservations and evidence.
+The quick entry uses text matching and cross-validated reconstruction; advanced
+manual tools keep their richer input and research controls. `computeFetch` bypasses
+the saved-browser-evidence adapter for new jobs and hardware status. Result links
+explicitly select worker evidence, so an earlier demo does not mask new results.

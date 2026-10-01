@@ -15,7 +15,7 @@ python3 scripts/build_dashboard.py
 
 The build also creates `dist/fork-dashboard.zip` containing the same explicit assets.
 
-Publish **only `dist/dashboard/`** to your static HTTPS host. Its index opens the curated attendance demo in Explore, without contacting a worker. This build uses an explicit asset list: the demo is intentionally included; model weights, other local run records, prompt sets, environment files and credentials are excluded. Keep the dashboard and worker on the same release; protocol compatibility across future versions is not promised.
+Publish **only `dist/dashboard/`** to your static HTTPS host. Its index opens the prompt-led Setup screen; a saved attendance-demo link is available without compute. The compute control checks an already configured worker but does not start generation. This build uses an explicit asset list: the demo is intentionally included; model weights, other local run records, prompt sets, environment files and credentials are excluded. Keep the dashboard and worker on the same release; protocol compatibility across future versions is not promised.
 
 For GCP, this folder is the frontend deployment artifact. A static host or a web-server container behind HTTPS can serve it; cloud deployment is separate from the GPU worker. This change does not provision GCP infrastructure or guarantee a free bill. Check the chosen service's current storage, request and egress terms before publishing. Do not deploy the inference worker as a shared public API.
 
@@ -86,7 +86,7 @@ The container accepts `FORK_WORKER_HOST`, `FORK_DASHBOARD_ORIGIN`, and `FORK_WOR
 
 - The worker token grants access to that worker's model controls, filesystem model paths, jobs and saved evidence. Use a separate worker per person or trusted team. This is not tenant isolation inside one worker.
 - Allowed origins are explicit; wildcard access is refused. API requests require a bearer token when network/origin access is enabled or a worker token is explicitly set. CLI calls without an Origin still require the token.
-- The browser retains the selected worker URL and token in **tab session storage**, so page navigation keeps working. Disconnect removes them. They are not included in run or prompt-set exports.
+- The browser retains the selected worker URL and token in **tab session storage**, so page navigation keeps working. An explicit **Remember this connection** checkbox additionally stores them in localStorage on a trusted browser. Disconnect removes both copies and notifies open tabs. They are not included in run or prompt-set exports.
 - Lens and text/activation investigations live in `investigations/` and are included in **Export investigation** when related to its runs. A single-run export omits them. The current GPU container does not link this directory into `/workspace`; see [container storage](../docker/README.md#persistent-or-disposable-storage).
 - Run records live in `live-runs/`; sets and batch snapshots live in `workspace-data/`. Both map into `/workspace/` in the GPU container. Use a persistent mount or export before terminating an ephemeral VM.
 - Prompt batches execute sequentially on one attached model. A model load or another batch cannot begin while a job runs. Stop acts on the selected job ID. Completed results survive cancellation; incomplete sampling is retained but not automatically resumed.

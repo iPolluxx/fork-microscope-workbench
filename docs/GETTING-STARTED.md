@@ -110,9 +110,7 @@ Stopping a worker does **not** terminate a rented VM or stop its bill. Export yo
 investigation before deleting temporary compute. Status shows the log location;
 for managed services use `journalctl --user -u fork-machine-8768`.
 
-Connections remain in session storage, shared with other open tabs of the same
-website. Closing all tabs, using another browser, or changing the worker address
-requires pairing again. Runs stay on the worker: changing machines changes your
+By default, connections stay in session storage and are shared with open tabs of the same website. Select **Remember this connection on this trusted browser** while pairing to retain the URL and worker token across browser restarts. This is optional: anyone with access to that browser profile can use the credential. Disconnect clears it from open tabs and persistent storage. A different browser, changed URL or rotated token requires pairing again. Runs stay on the worker: changing machines changes your
 visible library. Import a saved bundle to browse it on another machine without a GPU.
 
 ## 3. Advanced or existing workers
@@ -140,7 +138,7 @@ Open **Setup** and expand the model controls after connecting compute.
 2. Click **Inspect model requirements**. This checks the model format and shows
    what the worker can tell you about its hardware.
 3. Click **Load model** after inspection succeeds.
-4. Save the investigation prompt, outcome rules and resource limits in Setup.
+4. Return to the prompt at the top of Setup. The selected model and resolved revision appear above it.
 
 The model runs where the worker runs. A local directory is a path on that worker,
 not an upload from your browser. For a private or gated Hugging Face model, sign
@@ -153,34 +151,45 @@ code, and pre-quantized checkpoints are not supported attachment routes.
 
 ## 5. Run a small first scan
 
-In **Setup**, name the investigation, write your prompt, and define outcomes.
-For example, ask for a final line `DECISION=LAUNCH` or `DECISION=DELAY` and use
-an explicit final-marker rule. Test the rule against example text before spending
-compute. Save the investigation with time, sample and generated-token limits.
+In **Setup**, write the prompt and list **Answers to watch for**, one per line.
+Ask the model to finish with a distinct marker such as `CHOICE=A` or `CHOICE=B`,
+and track those strings. These labels are not automatically added to your prompt.
+The quick workflow uses literal text matching in the completed reply; mentions
+of both markers are unresolved. It is not a judge of truth or quality.
 
-In **Explore**, choose **Generate**, bounded outcome search, or an existing saved
-response. Search preserves attempts and can finish without finding its target;
-it does not estimate how common the selected outcome is. Read the classification
-and completion status, then choose **Scan this response**. Capped or ambiguous
-output is not evidence of a completed contrasting decision.
+Expand **Advanced settings** if needed. The default initial scan uses a checkpoint
+every 16 output tokens, 10 total continuations per checkpoint and a 512-token
+continuation cap. Original-response cap: 512 tokens. Limits: 1,800 seconds,
+500 samples and 200,000 generated tokens. These are starting settings, not a
+validated sweet spot for every model. Large reasoning models may need longer
+response caps; raise the token budget accordingly. No refinement or lens job
+starts by default.
 
-Start small and review the allowance before launching:
+Click **Run investigation**. The existing background coordinator generates the
+original response and scans its exact token sequence. The sequential display
+shows progress and **Stop investigation**. Capped responses cannot be scanned;
+short responses can be too short for two checkpoints. Read the error, adjust
+settings, and start another investigation. A resource limit can stop work before
+the scan while preserving the original response.
 
-- **Checkpoint spacing** controls distance between measurements on the saved response.
-- **Samples per checkpoint** controls how many alternative continuations are collected.
-- **Continuation token limit** bounds how long each continuation may generate.
+After a connection failure, reconnect to the same worker and use **Refresh
+progress** or **Recover submitted investigation**. The latter retries the saved
+request identity, avoiding a duplicate job. Reloading the page in the same browser
+session restores the job for that worker. Closing all browser sessions can lose
+the local job pointer; the worker still has the investigation in its library.
 
-The scan uses the selected response's exact token IDs. Text matching and final-marker
-rules are literal classifiers, not truth or quality judges. Multiple matches,
-missing matches and unfinished replies are unresolved outcomes (`Other`).
+Use **Inspect results** to open the timeline, then choose a checkpoint to compare
+continuations. **Export investigation** saves a portable bundle. No contrasting
+outcomes is a valid result, not a reason to invent a fork.
 
-The older one-scan controls and CLI remain available for existing configurations;
-the investigation workflow adds shared context, history and resource accounting.
+For final-marker parsing, prior conversation history, outcome search, independent
+reference scans or custom passes, expand **Advanced · manual research workflow**
+and the compute controls. The earlier step-by-step workflow remains available.
 
-Progress separates continuations saved from the token currently being generated.
-A rough remaining-time estimate appears after two continuations finish. Different
-continuation lengths can change that estimate. Model loading reports weight
-download progress where available, then memory loading as a separate stage.
+Time and dollar costs are not fabricated: the front door shows a worst-case
+initial sampling allowance, not an expected bill. Refinement is additional.
+Token/sample reservations bound work before each phase; runtime cancellation is
+cooperative. Stopping an investigation does not stop rented VM billing.
 
 ## 6. Follow the evidence
 
@@ -285,9 +294,7 @@ and open `http://127.0.0.1:8767/observatory.html`. A plain local viewer needs no
 model, GPU, or token unless you explicitly configure `FORK_WORKER_TOKEN`. Do not
 reuse network-worker credentials merely to browse your local files.
 
-Authenticated connections are shared between open tabs of the same website,
-without storing tokens in localStorage. A different browser or website origin,
-or reopening after all tabs close, may need **Connect a machine** again. The top
+Authenticated connections are shared between open tabs of the same website. Tokens stay in session storage unless you explicitly choose **Remember this connection**, which uses localStorage. A different browser or website origin, or reopening without that option, requires **Connect compute** again. The top
 bar identifies the evidence source. An authentication error means reconnect; it
 does not mean the files disappeared. Network workers still require their token.
 

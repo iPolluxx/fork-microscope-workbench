@@ -1,9 +1,9 @@
 /* Static dashboard transport. Models and evidence remain on the user's worker. */
 (() => {
-  const key = 'fork-worker-session-v1';
+  const key = 'fork-worker-session-v1', rememberedKey='fork-worker-remembered-v1';
   const nativeFetch = window.fetch.bind(window);
-  let config = null, generation = 0;
-  try { config = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch {}
+  let config = null, generation = 0, acceptHandoff=true;
+  try { config = JSON.parse(sessionStorage.getItem(key) || localStorage.getItem(rememberedKey) || 'null'); } catch {}
   const local = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
   function endpoint(value) {
     const url = new URL(value);
@@ -12,15 +12,16 @@
     return url.origin;
   }
   try { if (config) config = {url:endpoint(config.url), token:String(config.token || '')}; } catch { config=null; }
-  // Share credentials only with other live, same-origin tabs. Never persist
-  // tokens in localStorage or put them in navigation URLs.
+  // Share credentials only with other live, same-origin tabs. Never put tokens
+  // in navigation URLs. Persistent storage requires explicit opt-in.
   let channel=null, finishHandoff, handoffPending=!config;
   const handoff=config ? Promise.resolve() : new Promise(resolve=>{finishHandoff=resolve;setTimeout(()=>{handoffPending=false;resolve();},400);});
   try {
     channel=new BroadcastChannel('fork-worker-tabs-v1');
     channel.onmessage=({data})=>{
       if(data?.type==='request' && config) channel.postMessage({type:'connection',config});
-      if(data?.type==='connection' && !config && data.config){
+      if(data?.type==='disconnect'){config=null;generation++;acceptHandoff=false;try{sessionStorage.removeItem(key);localStorage.removeItem(rememberedKey);}catch{}draw();window.dispatchEvent(new Event('worker-connection-change'));}
+      if(data?.type==='connection' && acceptHandoff && !config && data.config){
         try {
           const next={url:endpoint(data.config.url),token:String(data.config.token||'')};
           // Resolve startup before issuing the first evidence request.
@@ -42,21 +43,26 @@
     if (!origin) throw Error('Connect the worker that holds your saved runs using Connect compute above. Reading saved evidence needs no loaded model or GPU.');
     const headers=new Headers(options.headers);
     if (config?.token) headers.set('Authorization','Bearer '+config.token);
-    const response=await nativeFetch(origin+input,{...options,headers,credentials:'omit',referrerPolicy:'no-referrer'});
+    const response=await nativeFetch(origin+input,{...options,headers,credentials:'omit',redirect:'error',referrerPolicy:'no-referrer'});
     if (current!==generation) throw Error('Worker changed. Discarded a response from the previous worker.');
     if(response.status===401)throw Error('Your saved runs have not been deleted. This window needs the worker access token: choose Connect compute and reconnect to the worker holding your evidence.');
     return response;
   };
-  function persist(value) {
-    config=value;generation++;
+  // Raw authenticated transport stays available while Explorer browses offline evidence.
+  window.computeFetch=window.workerFetch;
+  function persist(value,remember=false) {
+    config=value;generation++;if(!value){acceptHandoff=false;channel?.postMessage({type:'disconnect'});}
     try { if (value) sessionStorage.setItem(key,JSON.stringify(value)); else sessionStorage.removeItem(key); } catch {}
+    try {if(value&&remember)localStorage.setItem(rememberedKey,JSON.stringify(value));else localStorage.removeItem(rememberedKey);}catch{}
     draw();window.dispatchEvent(new Event('worker-connection-change'));
   }
-  let status, button;
+  let status, button, telemetry=null, connectionState='Disconnected', checking=false;
+  async function checkStatus(){if(checking)return;checking=true;const current=generation;try{const r=await window.computeFetch('/api/live/status',{signal:AbortSignal.timeout(8000)});const value=await r.json();if(!r.ok||!value.job||!value.runtime)throw Error('Not a worker');if(current!==generation)return;telemetry=value;connectionState=value.job.status==='running'?'Running':value.model?'Ready':'Connected · no model loaded';}catch{if(current!==generation)return;telemetry=null;connectionState='Disconnected';}finally{checking=false;if(current===generation){draw();window.dispatchEvent(new CustomEvent('fork-worker-status',{detail:telemetry}));}}}
+
   function draw() {
     if (!status) return;
-    status.textContent=config ? `Evidence & compute · ${new URL(config.url).host}` : local ? `Local evidence · ${location.host} · model readiness not checked` : 'Evidence source · not connected';
-    button.textContent=config ? 'Change machine' : 'Connect a machine';
+    status.textContent=`Compute: ${connectionState}${config?' · '+new URL(config.url).host:''}${telemetry?.runtime?.gpu_name?' · '+telemetry.runtime.gpu_name:''}`;status.setAttribute('role','status');
+    button.textContent=config ? 'Manage compute' : 'Connect compute';
   }
   function init() {
     const style=document.createElement('style');
@@ -77,7 +83,7 @@
       <p><a href="https://github.com/iPolluxx/fork-microscope-workbench/blob/main/docs/GETTING-STARTED.md" target="_blank" rel="noopener noreferrer" style="color:#c8e5fa">Installation and connection guide ↗</a></p>
       <details data-advanced><summary>Advanced: worker URL and access token</summary><form data-manual-form><label>Worker URL<input name="url" type="url" placeholder="http://127.0.0.1:8767" required autocomplete="off"></label><label>Worker access token<input name="token" type="password" autocomplete="off" placeholder="Worker token, not a provider API key"></label><p role="status" aria-live="polite"></p><button type="submit">Test and connect</button></form></details>
       <p><small>Connections stay in this tab’s session storage and are shared with other open tabs of this website. Saved runs stay on the selected machine. Switching machines changes which library you see.</small></p>
-      <div class="worker-actions"><button type="button" data-disconnect>Disconnect</button><button type="button" data-close>Close</button></div>
+      <label><input data-remember type="checkbox" style="display:inline;width:auto"> Remember this connection on this trusted browser</label><p><small>Optional: stores the worker address and access token across browser restarts. Anyone using this browser profile can access that worker. Leave off on a shared device. Disconnect removes the stored credential.</small></p><div class="worker-actions"><button type="button" data-disconnect>Disconnect</button><button type="button" data-close>Close</button></div>
       <details><summary>Connection lifetime and troubleshooting</summary><p>The background worker survives closing your terminal. The computer must stay awake and online. A temporary tunnel address can change after restart: run <code>fork-microscope machine pair</code> and pair again. For a permanent endpoint, use <code>--public-url</code> with your HTTPS setup.</p><p>A hosted website may request local-network permission. If localhost access is blocked, use the dashboard served on the same computer. Allowed website: <code data-origin></code></p><p>Stopping the worker does not stop VM billing. Export your investigation before deleting a rented machine.</p></details>`;
     dialog.querySelector('[data-origin]').textContent=location.origin;
     document.body.append(dialog);
@@ -105,34 +111,38 @@
     pairForm.onsubmit=async event=>{
       event.preventDefault();const submit=pairForm.querySelector('[type=submit]');submit.disabled=true;
       try{
-        const {url,secret}=decodePair(pairForm.elements.code.value.trim());pairNote.textContent='Pairing with '+url+'…';
+        const {url,secret}=decodePair(pairForm.elements.code.value.trim());pairNote.textContent='Pairing with '+url+'…';connectionState='Connecting';draw();
         const response=await nativeFetch(url+'/api/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret}),credentials:'omit',redirect:'error',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(15000)});
         const value=await response.json();if(!response.ok)throw Error(value.error||'Pairing failed.');
         if(typeof value.token!=='string'||!/^[A-Za-z0-9._~-]{32,512}$/.test(value.token))throw Error('Worker returned invalid credentials.');
         const check=await nativeFetch(url+'/api/live/status',{headers:{Authorization:'Bearer '+value.token},credentials:'omit',redirect:'error',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(15000)});
         const status=await check.json();if(!check.ok||!status.job||!status.runtime)throw Error('Pairing succeeded but worker verification failed. Run machine pair to retry.');
-        persist({url,token:value.token});pairForm.reset();dialog.close();
+        persist({url,token:value.token},dialog.querySelector('[data-remember]').checked);pairForm.reset();dialog.close();
       }catch(error){pairNote.textContent=error.message==='Failed to fetch'?'Cannot reach the machine. Check that it is online; for phone access use --share. If its tunnel restarted, generate a new pairing code.':error.message;}
-      finally{submit.disabled=false;}
+      finally{submit.disabled=false;checkStatus();}
     };
-    button.onclick=()=>{form.elements.url.value=config?.url || (local?location.origin:'http://127.0.0.1:8767');form.elements.token.value=config?.token || '';note.textContent='';pairNote.textContent='';dialog.showModal();};
+    window.openComputeConnection=()=>button.click();
+    button.onclick=()=>{try{dialog.querySelector('[data-remember]').checked=!!localStorage.getItem(rememberedKey);}catch{}form.elements.url.value=config?.url || (local?location.origin:'http://127.0.0.1:8767');form.elements.token.value=config?.token || '';note.textContent='';pairNote.textContent='';dialog.showModal();};
     dialog.querySelector('[data-close]').onclick=()=>dialog.close();
     dialog.querySelector('[data-disconnect]').onclick=()=>{persist(null);dialog.close();};
     form.onsubmit=async event=>{
       event.preventDefault();const submit=form.querySelector('[type=submit]');submit.disabled=true;
       try {
         const url=endpoint(form.elements.url.value.trim()),token=form.elements.token.value.trim();
-        note.textContent='Checking worker access…';
+        note.textContent='Checking worker access…';connectionState='Connecting';draw();
         const headers=token?{Authorization:'Bearer '+token}:{};
         const response=await nativeFetch(url+'/api/live/status',{headers,credentials:'omit',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(15000)});
         const value=await response.json();
         if (!response.ok) throw Error(value.error || 'Worker refused this connection.');
         if (!value.job || !value.runtime) throw Error('This is not a compatible Fork Microscope worker.');
-        persist({url,token});dialog.close();
+        persist({url,token},dialog.querySelector('[data-remember]').checked);dialog.close();
       } catch (error) {note.textContent=error.message==='Failed to fetch'?'Cannot reach the worker. Check its URL, HTTPS or SSH tunnel, allowed dashboard origin, and browser local-network permission.':error.message;}
-      finally {submit.disabled=false;}
+      finally {submit.disabled=false;checkStatus();}
     };
-    draw();
+    draw();checkStatus();
+    window.addEventListener('worker-connection-change',()=>{telemetry=null;connectionState='Connecting';draw();checkStatus();});
+    const heartbeat=setInterval(()=>{if(!document.hidden)checkStatus();},10000);
+    window.addEventListener('pagehide',()=>clearInterval(heartbeat));
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();

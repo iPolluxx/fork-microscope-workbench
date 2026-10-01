@@ -35,7 +35,7 @@ def test_worker_serves_inspection_modules_used_by_explorer():
     server=ThreadingHTTPServer(('127.0.0.1',0),QuietHandler)
     thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
     try:
-        for name in ('patching-panel.mjs','patching-panel.css','lens-panel.mjs','observatory.mjs'):
+        for name in ('patching-panel.mjs','patching-panel.css','lens-panel.mjs','observatory.mjs','quick-investigation.mjs','quick-investigation-config.mjs','quick-investigation.css'):
             with urllib.request.urlopen(f'http://127.0.0.1:{server.server_port}/{name}') as response:
                 assert response.status==200
                 assert response.read()==(ROOT/'public/fork-microscope'/name).read_bytes()

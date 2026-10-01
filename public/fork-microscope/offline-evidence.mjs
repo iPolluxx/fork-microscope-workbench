@@ -254,7 +254,7 @@ export async function initOfflineEvidence(){
     const params=new URL(location.href).searchParams;let preferred='';try{preferred=localStorage.getItem('fork-evidence-source');}catch{}
     if(params.get('demo')==='attendance'){
       const response=await fetch('/demo-attendance.json');if(!response.ok)fail('Demo evidence could not be loaded.');await installOfflineEvidence(await response.json());
-    }else if(params.get('evidence')==='local'||preferred==='browser'){
+    }else if(params.get('evidence')==='local'||(params.get('evidence')!=='worker'&&preferred==='browser')){
       bundles=(await savedBundles()).sort((a,b)=>(a.payload.investigation?.updated??0)-(b.payload.investigation?.updated??0));for(const b of bundles)await validateOfflineBundle(b);active=Boolean(bundles.length);
     }
     window.workerFetch=evidenceFetch;

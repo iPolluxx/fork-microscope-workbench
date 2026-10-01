@@ -15,6 +15,16 @@ Built around [Goodfire's *Forking Fast* research](https://arxiv.org/abs/2608.196
 
 **Status: v0.1.0-beta.1 — research beta.** The public website is the interface; generation requires your own worker and suitable hardware. Fork Microscope's own code is MIT licensed. The pinned Goodfire dependency has no license file; permission for public redistribution of a bundled worker/image remains unresolved. See [third-party provenance](THIRD-PARTY.md). No model weights are included. A curated attendance investigation is included as a browser-only demo; arbitrary local run archives are excluded.
 
+## Try a complete investigation — no GPU needed
+
+[Open the attendance example](https://fork-microscope-wzyjs4vwsq-uc.a.run.app/observatory.html?demo=attendance): does a model choose guaranteed attendance or a higher expected turnout? Browse the original response, three progressively focused scans, competing continuations and saved lens readouts.
+
+The final scan uses 17 checkpoints, four tokens apart, with 20 continuations each. At checkpoint 128, 12/20 replies selected B; at checkpoint 192, 18/20 selected B. These are finite-sample observations from one response, not proof of a causal decision token. [Read the demonstration and its limits](docs/DEMO-ATTENDANCE.md).
+
+![Recorded outcome frequencies and two contrasting replies from the attendance investigation](docs/images/attendance-evidence.png)
+
+This figure is rendered from the saved evidence, not a screenshot or a new experiment.
+
 ## Choose your starting point
 
 - **New to the workflow?** Open **Guide** in Workspace for a visual tour, setting tradeoffs and the right document for your task.
@@ -68,15 +78,17 @@ To upgrade an existing checkout and restart its worker, follow [Updating your in
 
 ## Run your first investigation
 
-1. **Setup:** name your investigation, enter the prompt and optional conversation history, define outcomes, and test the matching rule on example text. Set explicit time, token and sample limits.
-2. **Connect compute:** pair your own worker, inspect the model's compatibility and load it. Gated/private model access is configured on the worker through Hugging Face authentication. Missing J-lens support does not block a behavioral scan.
-3. **Find a response:** generate once, search for a target outcome within bounded attempts, or choose a saved response. Review classification and completion status. A search may legitimately find no target.
-4. **Scan this response:** choose checkpoint spacing, samples per checkpoint and the continuation token limit. The scan preserves the selected response's exact token IDs.
-5. **Explore:** read raw proportions and the fitted curve, select an interval for refinement, then compare recorded continuations. Related scans remain separate evidence with parent links; the map stays available during inspection.
-6. **Inspect & Test:** open saved lens readouts or use connected compute for supported measurements and controlled interventions. Selection is carried forward. Vocabulary readouts and first textual differences do not establish causation.
-7. **Conclude and export:** save what the evidence supports and export a complete investigation bundle. Import it into Explorer to browse without compute. To continue an imported investigation on a worker, explicitly choose **Transfer to connected compute**; import does not start generation.
+1. **Write the prompt** and list **Answers to watch for**. Ask for distinct final markers when possible; text matching is not a semantic judge.
+2. **Connect compute and load a model.** The selected model and pinned revision appear above the prompt. No model is included in the website.
+3. **Review Advanced settings and resource limits**, then click **Run investigation**. It generates the original response and scans the full completed trace at the selected spacing. Refinement is optional and off by default.
+4. **Inspect results:** use the outcome timeline to choose a checkpoint, read contrasting branches and sample an interesting interval more densely. No contrast is a valid result.
+5. **Export the investigation.** Reimport it into Explorer to browse without compute. New continuations or internal readouts require compatible connected compute.
 
-The static [dashboard](https://fork-microscope-wzyjs4vwsq-uc.a.run.app) opens a saved demo. Your own imported bundles and annotations stay in that browser's storage; export a backup before clearing browser data or switching devices. Conflicting worker IDs are rejected rather than silently overwriting evidence.
+The manual research workflow remains available for history, outcome search,
+final-marker parsing, independent references, custom passes and J-lens inspection.
+[First-session walkthrough](docs/GETTING-STARTED.md) explains settings, retries and cancellation.
+
+The static [dashboard](https://fork-microscope-wzyjs4vwsq-uc.a.run.app) opens Setup with a saved-demo link. Your own imported bundles and annotations stay in that browser's storage; export a backup before clearing browser data or switching devices. Conflicting worker IDs are rejected rather than silently overwriting evidence.
 
 For a small CPU smoke run after installation, in another terminal run:
 
@@ -104,7 +116,7 @@ See the [method and experiment reference](docs/REFERENCE.md), [numerical audit](
 python3 scripts/build_dashboard.py
 ```
 
-Publish the generated `dist/dashboard/` folder, or unpack `dist/fork-dashboard.zip`, on an HTTPS static host. It includes license notices and the curated attendance demo, and excludes upstream Python code/data, models, other local run records and credentials. The static home opens the demo without connecting compute. Each visitor connects an independently owned worker using a worker URL and access token. A worker can serve its own copy of the dashboard too.
+Publish the generated `dist/dashboard/` folder, or unpack `dist/fork-dashboard.zip`, on an HTTPS static host. It includes license notices and the curated attendance demo, and excludes upstream Python code/data, models, other local run records and credentials. The static home opens Setup; the demo remains available without compute. Each visitor connects an independently owned worker using a worker URL and access token. A worker can serve its own copy of the dashboard too.
 
 [Hosted dashboard instructions](docs/HOSTED-DASHBOARD.md) cover allowed origins, authentication, browser local-network restrictions, SSH/HTTPS and backups. There are no central accounts, shared GPU service, or cloud-provider credentials in this design. A worker is for one user or trusted team; unrelated visitors need separate workers.
 

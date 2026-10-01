@@ -5,6 +5,9 @@ Start with the task you want to do. You do not need to read every document.
 
 | I want to… | Start here |
 | --- | --- |
+| Browse a complete example and its justified conclusion | [Attendance demonstration](DEMO-ATTENDANCE.md) |
+| Help test the tool without coaching | [15-minute user-test task](USER-TEST.md) |
+| Check the portfolio release checklist | [Readiness and remaining acceptance](PORTFOLIO-READINESS.md) |
 | Understand the interface before connecting hardware | Open **Guide** from Workspace (or `/guide.html` on your running dashboard). It works without compute. |
 | Connect my computer or a GPU VM and run one prompt | [Your first session](GETTING-STARTED.md) |
 | Run a complete investigation from a CLI or agent | [Investigation workflow](INVESTIGATION-WORKFLOW.md) |
@@ -21,8 +24,7 @@ Start with the task you want to do. You do not need to read every document.
 
 ## The shortest useful path
 
-**One investigation:** Setup prompt/outcomes/limits → connect compute → generate,
-search or select a saved response → scan → refine/compare → Inspect & Test → export. Expand advanced controls when your research
+**One investigation:** Setup prompt/answers → connect compute and load model → **Run investigation** → inspect timeline/branches → refine → export. The manual workflow also supports searching for or selecting an existing response. Expand advanced controls when your research
 question needs them. You can also configure multiple prompts in Workspace.
 
 **Existing results:** Explore → Import evidence → select a linked run → browse
