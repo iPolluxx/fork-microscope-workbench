@@ -12,6 +12,7 @@ class Auth:
         return {'uid':token}
 class Vault:
     def put(self,*args): return 'opaque-secret'
+    def delete(self,*args): pass
 class Catalog:
     def models(self): return [{'model_id':'test','revision':'abc'}]
     def quote(self,b,now): return {'id':'quote-'+b['owner_uid'],'model_id':'test','revision':'abc','expires_at':now+300,'max_duration_seconds':600}

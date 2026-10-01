@@ -41,6 +41,22 @@ class HostedService:
         request_digest=digest({'operation':operation,'id':resource_id,'body':body})
         idem=digest([uid,idempotency_key]) if mutation else None
         now=self.clock()
+        if idem:
+            previous=self.store.transaction(lambda tx: tx.get('idempotency',idem))
+            if previous:
+                if previous['digest']!=request_digest: raise HostedError(409,'Idempotency key reused with different request')
+                return previous['response']
+        old_ref=None
+        new_ref=None
+        if operation in {'runpod_put','runpod_delete'}:
+            if self.vault is None: raise HostedError(503,'Credential vault unavailable')
+            old=self.store.transaction(lambda tx: tx.get('connections',uid+'_runpod'))
+            old_ref=(old or {}).get('credential_ref')
+            if operation=='runpod_put':
+                value=body.get('api_key')
+                if not isinstance(value,str) or not 10<=len(value)<=1024: raise HostedError(422,'Invalid API key')
+                new_ref=self.vault.put(uid,'runpod',value)
+                body=dict(body,_prepared_ref=new_ref)
         # Provider quotations are read-only. Secret writes use a deterministic owner/idempotency
         # reference managed by vault; never place credential values in persisted request bodies.
         quote=None
@@ -56,7 +72,13 @@ class HostedService:
             result=self._operation(tx,uid,operation,body,resource_id,now,quote)
             if idem: tx.set('idempotency',idem,{'id':idem,'owner_uid':uid,'digest':request_digest,'response':result,'created_at':now})
             return result
-        return self.store.transaction(apply)
+        try:
+            result=self.store.transaction(apply)
+        except Exception:
+            if new_ref: self.vault.delete(new_ref)
+            raise
+        if old_ref and old_ref!=new_ref: self.vault.delete(old_ref)
+        return result
     def _operation(self,tx,uid,op,b,key,now,quote):
         if op=='me': return {'uid':uid,'workspace_id':uid,'runpod_connected':bool((tx.get('connections',uid+'_runpod') or {}).get('connected'))}
         if op=='models': return {'models':self.catalog.models() if self.catalog else []}
@@ -82,10 +104,9 @@ class HostedService:
             if op=='runpod_put':
                 value=b.get('api_key')
                 if not isinstance(value,str) or not 10<=len(value)<=1024: raise HostedError(422,'Invalid API key')
-                ref=self.vault.put(uid,'runpod',value)
+                ref=b['_prepared_ref']
                 tx.set('connections',uid+'_runpod',{'owner_uid':uid,'credential_ref':ref,'connected':True})
             else: tx.set('connections',uid+'_runpod',{'owner_uid':uid,'connected':False})
-            # Secret deletion is intentionally outside transaction retries; controller can retire orphan refs.
             return {'connected':op=='runpod_put'}
         if op=='start':
             q=self._owned(tx,'quotes',b.get('quote_id',''),uid)
