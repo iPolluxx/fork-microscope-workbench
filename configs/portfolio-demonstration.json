@@ -1,0 +1,41 @@
+{
+  "model": {
+    "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+    "revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+    "device": "cuda",
+    "batch_size": 8
+  },
+  "base": {
+    "prompt": "Choose between Plan A, which guarantees 70 attendees, and Plan B, which has a 50% chance of 40 attendees and a 50% chance of 110. Costs are equal. No risk preference or minimum attendance is specified. Explain your choice in at most 80 words. End with exactly CHOICE=A or CHOICE=B, and use these labels only on the final line.",
+    "answers": [
+      "CHOICE=A",
+      "CHOICE=B"
+    ],
+    "mode": "chat",
+    "max_tokens": 256,
+    "seed": 23
+  },
+  "scan": {
+    "start": 0,
+    "end": null,
+    "stride": 16,
+    "samples": 20,
+    "cont_max": 256,
+    "temperature": 1.0,
+    "top_k": 5,
+    "threshold": 0.05,
+    "seed": 101
+  },
+  "refinement": {
+    "max_rounds": 1,
+    "stride": 4,
+    "samples": 20,
+    "min_tvd": 0.25
+  },
+  "lens": null,
+  "limits": {
+    "max_seconds": 1800,
+    "max_samples": 500,
+    "max_generated_tokens": 130000
+  }
+}
