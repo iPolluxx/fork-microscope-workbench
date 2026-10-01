@@ -11,8 +11,15 @@ if ! command -v uv >/dev/null 2>&1; then
   echo "Install uv first: https://docs.astral.sh/uv/getting-started/installation/" >&2
   exit 1
 fi
+# Older uv catalogs and Python 3.13.8 from GPU templates can fail importing
+# the pinned PyTorch. Use the interpreter verified by the clean-worker demo.
+uv_version=$(uv --version | awk '{print $2}')
+if [ "$(printf '%s\n' 0.11.2 "$uv_version" | sort -V | head -n1)" != 0.11.2 ]; then
+  echo "Upgrade uv to 0.11.2 or newer before setup (uv self update, or your package manager)."
+  exit 1
+fi
 git submodule update --init --recursive
-uv venv --python 3.13 --allow-existing .venv
+uv venv --python 3.13.12 --allow-existing .venv
 uv pip sync --python .venv/bin/python --index "$wheel_index" \
   --index-strategy unsafe-best-match "requirements/$mode.lock"
 uv pip install --python .venv/bin/python --no-deps \

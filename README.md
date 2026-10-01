@@ -46,7 +46,7 @@ The workflow is **Setup → Explore → Inspect & Test**, organized around one s
 
 ## Install from a checkout
 
-Tested on Linux x86-64. You need Git and [uv](https://docs.astral.sh/uv/getting-started/installation/). The setup script installs Python 3.13 and the pinned dependencies into `.venv`. Node.js 22 is needed for the JavaScript test suite, not normal use.
+Tested on Linux x86-64. You need Git and [uv 0.11.2 or newer](https://docs.astral.sh/uv/getting-started/installation/). The setup script installs Python 3.13.12 and the pinned dependencies into `.venv`. Node.js 22 is needed for the JavaScript test suite, not normal use.
 
 ```bash
 git clone --recurse-submodules https://github.com/iPolluxx/fork-microscope-workbench.git

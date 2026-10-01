@@ -1,5 +1,7 @@
 # Changelog
 
+- Clean RunPod installation now selects Python 3.13.12 and checks uv >= 0.11.2; the template’s Python 3.13.8 failed to import the pinned PyTorch.
+
 ## Portfolio candidate — 2026-10-01 (not yet deployed)
 
 - Prompt-led home with a single Run investigation action using the existing

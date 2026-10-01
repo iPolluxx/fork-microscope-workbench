@@ -31,7 +31,7 @@ Choose where the model will run:
 | A Linux computer or GPU VM with an NVIDIA GPU | Running checkpoint scans on models that fit its GPU | `./scripts/setup.sh cuda` |
 
 The tested installation is Linux x86-64 with Git and
-[uv](https://docs.astral.sh/uv/getting-started/installation/). macOS and Windows
+[uv 0.11.2 or newer](https://docs.astral.sh/uv/getting-started/installation/). macOS and Windows
 are not yet tested release paths. Muse-Glimmer-30B previously required an A100
 80 GB; do not try it on an ordinary laptop just to see the interface.
 
