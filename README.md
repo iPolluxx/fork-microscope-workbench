@@ -15,6 +15,8 @@ Built around [Goodfire's *Forking Fast* research](https://arxiv.org/abs/2608.196
 
 **Status: v0.1.0-beta.1 — research beta.** The public website is the interface; generation requires your own worker and suitable hardware. Fork Microscope's own code is MIT licensed. The pinned Goodfire dependency has no license file; permission for public redistribution of a bundled worker/image remains unresolved. See [third-party provenance](THIRD-PARTY.md). No model weights are included. A curated attendance investigation is included as a browser-only demo; arbitrary local run archives are excluded.
 
+**Fresh GPU acceptance:** [browse the Qwen demonstration](https://fork-microscope-wzyjs4vwsq-uc.a.run.app/observatory.html?demo=portfolio&run=35c70e0520c447e38f2c4468bde23393&pass=scan&checkpoint=16#scan) or read its [protocol, measured counts and limitations](docs/DEMO-VALIDATION.md). Six checkpoints, 120 continuations; no GPU needed to view.
+
 ## Try a complete investigation — no GPU needed
 
 [Open the attendance example](https://fork-microscope-wzyjs4vwsq-uc.a.run.app/observatory.html?demo=attendance): does a model choose guaranteed attendance or a higher expected turnout? Browse the original response, three progressively focused scans, competing continuations and saved lens readouts.

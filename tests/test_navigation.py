@@ -49,3 +49,4 @@ def test_source_and_built_routes_share_navigation(tmp_path):
     assert 'content="0;url=live.html"' in (target/'index.html').read_text()
     assert 'observatory.html?demo=attendance' in (target/'index.html').read_text()
     assert (target/'demo-attendance.json').is_file()
+    assert (target/'demo-portfolio.json').is_file()

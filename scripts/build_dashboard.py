@@ -13,7 +13,7 @@ ASSETS=('workspace.html workspace.mjs workspace.css live.html live.js live.css '
         'compare.html compare.mjs compare.css worker-connection.js method-credit.js refinement-panel.mjs '
         'refinement-panel.css investigation-panel.mjs investigation-panel.css lens-panel.mjs lens-panel.css patching-panel.mjs patching-panel.css journey.css walkthrough.mjs evidence-import.mjs graph-evidence.mjs passes.mjs '
         'math.mjs plotly.min.js app.js styles.css job-progress.mjs response-review.mjs download.mjs').split()
-ASSETS = [*ASSETS, 'quick-investigation.mjs', 'quick-investigation-config.mjs', 'quick-investigation.css', 'compute-readiness.mjs', 'workflow-panel.mjs', 'guide.html', 'guide.css', 'guide.mjs', 'app-navigation.css', 'offline-evidence.mjs', 'classification.mjs', 'demo-attendance.json', 'selection.mjs', 'scoped-operation.mjs', 'request-retry.mjs', 'investigation-shell.mjs', 'investigation-shell.css', 'investigation-workbench.mjs']
+ASSETS = [*ASSETS, 'quick-investigation.mjs', 'quick-investigation-config.mjs', 'quick-investigation.css', 'compute-readiness.mjs', 'workflow-panel.mjs', 'guide.html', 'guide.css', 'guide.mjs', 'app-navigation.css', 'offline-evidence.mjs', 'classification.mjs', 'demo-attendance.json', 'demo-portfolio.json', 'selection.mjs', 'scoped-operation.mjs', 'request-retry.mjs', 'investigation-shell.mjs', 'investigation-shell.css', 'investigation-workbench.mjs']
 
 NOTICES={'LICENSE':ROOT/'LICENSE','THIRD-PARTY.md':ROOT/'THIRD-PARTY.md',
          'plotly-LICENSE.txt':ROOT/'licenses'/'plotly-MIT.txt'}

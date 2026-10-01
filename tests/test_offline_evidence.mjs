@@ -62,3 +62,13 @@ test('complete synthetic v3 fixture includes edits captures patches and comparis
  const missing=structuredClone(b);missing.payload.edits=[];
  await assert.rejects(validateOfflineBundle(seal(missing)),/mismatch/);
 });
+
+test('fresh Qwen GPU evidence imports and exports offline with its original counts',async()=>{
+ const b=JSON.parse(readFileSync(new URL('../public/fork-microscope/demo-portfolio.json',import.meta.url)));
+ await validateOfflineBundle(b);await installOfflineEvidence(b,{persist:false});
+ const exported=await (await evidenceFetch('/api/live/bundle-export?id='+b.manifest.entry_run_id)).json();
+ assert.deepEqual(exported,b);
+ const run=b.payload.runs[0];assert.equal(run.measured.scan.continuations,120);
+ assert.equal(run.measured.scan.unresolved,13);assert.equal(b.payload.lenses.length,0);
+ clearOfflineEvidence();
+});

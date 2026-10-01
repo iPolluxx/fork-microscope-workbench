@@ -1,8 +1,7 @@
 # Fork Microscope — portfolio checklist
 
 Updated 2026-10-01. Checked boxes below mean implemented or backed by existing
-saved evidence, **not** that a human usability study has passed. These changes
-are local and are not yet deployed to the public website.
+saved evidence, **not** that a human usability study has passed. The updated interface is pushed and deployed to the public website.
 
 ## Front door / UX
 
@@ -23,8 +22,8 @@ are local and are not yet deployed to the public website.
   same-origin tab handoff, and disconnect clearing stored credentials.
 - [x] Provider-neutral worker transport and model control.
 - [x] Sampling/inspection use the connected worker rather than provider APIs.
-- [ ] Fresh RunPod installation, pairing, reconnection and run acceptance on this
-  version. Requires an explicit current budget; none spent in this pass.
+- [x] Fresh RunPod installation, pairing, reconnection and real sampling through
+  the API/CLI; [protocol and evidence](DEMO-VALIDATION.md). Browser clicks remain unchecked.
 
 ## Investigation flow
 
@@ -87,7 +86,7 @@ are local and are not yet deployed to the public website.
 ## Verification record
 
 - Python suite: **310 passed, 3 skipped** (optional NNsight runtime unavailable).
-- JavaScript suite: **56 passed**, including simulated-worker start, lost-reply
+- JavaScript suite: **59 passed**, including simulated-worker start, lost-reply
   recovery without duplicate execution, cancellation and export.
 - Existing saved-evidence tests validate import/export, parent links, raw counts,
   saved lens token provenance and malformed-bundle rejection.
@@ -98,6 +97,6 @@ are local and are not yet deployed to the public website.
 - These checks are CPU/saved/simulated-data checks. They are not a new Muse run,
   a live RunPod acceptance test, or human usability evidence.
 
-No paid compute, public push or deployment occurred in this pass. Preserve this
-record when marking the final remaining boxes; do not silently turn planned
-acceptance into a completed claim.
+The initial UI implementation used no paid compute. A subsequent authorized
+RunPod acceptance run completed on 2026-10-01; see DEMO-VALIDATION.md for measured
+results and limitations. Tester recruitment is deferred at Isaiah’s request.
