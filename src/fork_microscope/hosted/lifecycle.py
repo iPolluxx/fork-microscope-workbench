@@ -12,12 +12,18 @@ from .provider import CreateUncertain, ProviderError
 
 class Lifecycle:
     def __init__(self, provider_factory, *, worker_image, control_plane_url,
-                 persist_before_create, worker_environment, clock=time.time):
+                 persist_before_create, worker_environment, clock=time.time, dashboard_origin=None,
+                 heartbeat_timeout_seconds=120):
         if not re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", worker_image):
             raise ValueError("Immutable worker image digest required")
         url = urlsplit(control_plane_url)
         if url.scheme != "https" or not url.hostname or url.username or url.password or url.query or url.fragment:
             raise ValueError("Configured HTTPS control plane required")
+        origin = urlsplit(dashboard_origin or control_plane_url)
+        if origin.scheme != "https" or not origin.hostname or origin.username or origin.password or origin.query or origin.fragment or origin.path not in {"", "/"}:
+            raise ValueError("Configured HTTPS dashboard origin required")
+        self.dashboard_origin = f"https://{origin.netloc}"
+        self.heartbeat_timeout = heartbeat_timeout_seconds
         self.provider_factory = provider_factory
         self.image = worker_image
         self.url = control_plane_url.rstrip("/")
@@ -28,6 +34,14 @@ class Lifecycle:
     def reconcile_session(self, session):
         now = self.clock()
         terminate = session.get("desired_state") == "terminated" or now >= session["expires_at"]
+        deadline_code = None
+        state = session.get("observed_state")
+        created = session.get("created_at")
+        if created is not None and state in {"requested", "provisioning", "booting"} and now >= created + session["quote"]["startup_allowance_seconds"]:
+            terminate, deadline_code = True, "startup_timeout"
+        heartbeat = session.get("worker_last_heartbeat_at", session.get("heartbeat_at"))
+        if heartbeat is not None and state in {"ready", "running", "saving"} and now >= heartbeat + self.heartbeat_timeout:
+            terminate, deadline_code = True, "worker_heartbeat_timeout"
         provider = self.provider_factory(session)
         name = session["request_name"]
         if not re.fullmatch(r"fm-[a-zA-Z0-9_-]{8,120}", name):
@@ -49,7 +63,8 @@ class Lifecycle:
                 # If a POST crashed, absence is not proof it will never appear.
                 uncertain = session.get("create_attempted") and not session.get("provider_ref") and not pods
                 return {"desired_state": "terminated", "observed_state": "terminating" if remaining or uncertain else "terminated",
-                        "cleanup_verified_at": None if remaining or uncertain else now}
+                        "cleanup_verified_at": None if remaining or uncertain else now,
+                        **({"error_code": deadline_code} if deadline_code else {})}
             if len(pods) > 1:
                 # All share this session's exact managed name. Delete on next tick.
                 return {"desired_state": "terminated", "observed_state": "terminating", "error_code": "duplicate_provider_name"}
@@ -72,8 +87,9 @@ class Lifecycle:
             if not self.claim(session["id"], {"create_attempted": True, "observed_state": "provisioning"}):
                 return {"observed_state": "provisioning"}
             body = {"name": name, "image": self.image, "gpu": {"id": quote["gpu_id"], "count": 1},
-                    "cloud": "SECURE", "disk": quote["disk_gb"], "ports": [], "startSsh": False,
+                    "cloud": "SECURE", "disk": quote["disk_gb"], "ports": ["8780/http"] if session.get("destination") == "device" else [], "startSsh": False,
                     "startJupyter": False, "env": dict(env, FM_CONTROL_PLANE_URL=self.url,
+                        FM_DASHBOARD_ORIGIN=self.dashboard_origin,
                         FM_SESSION_ID=session["id"], FM_EXPIRES_AT=str(session["expires_at"]),
                         FM_MODEL_ID=quote["model_id"], FM_MODEL_REVISION=quote["model_revision"])}
             try:

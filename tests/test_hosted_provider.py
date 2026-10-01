@@ -83,6 +83,21 @@ class HostedProviderTests(unittest.TestCase):
         self.assertNotIn("private-key", str(context.exception))
         self.assertEqual(calls[0][1], "https://api.runpod.io/v2/pods")
 
+    def test_startup_and_heartbeat_deadlines(self):
+        self.session["created_at"] = 10
+        self.tick()
+        self.now = 311
+        self.tick()
+        self.assertEqual(self.session["error_code"], "startup_timeout")
+        self.assertEqual(self.session["observed_state"], "terminated")
+
+    def test_device_port_and_dashboard_origin(self):
+        self.session["destination"] = "device"
+        self.tick()
+        pod = self.provider.pods["fake-1"]
+        self.assertEqual(pod["ports"], ["8780/http"])
+        self.assertEqual(pod["env"]["FM_DASHBOARD_ORIGIN"], "https://controller.example")
+
     def test_worker_image_and_origin_validation(self):
         with self.assertRaises(ValueError):
             Lifecycle(None, worker_image="latest", control_plane_url="https://controller.example", persist_before_create=None, worker_environment=None)
