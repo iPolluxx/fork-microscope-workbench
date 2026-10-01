@@ -48,15 +48,31 @@ class HostedService:
                 return previous['response']
         old_ref=None
         new_ref=None
+        credential_claim=None
         if operation in {'runpod_put','runpod_delete'}:
             if self.vault is None: raise HostedError(503,'Credential vault unavailable')
-            old=self.store.transaction(lambda tx: tx.get('connections',uid+'_runpod'))
-            old_ref=(old or {}).get('credential_ref')
-            if operation=='runpod_put':
-                value=body.get('api_key')
-                if not isinstance(value,str) or not 10<=len(value)<=1024: raise HostedError(422,'Invalid API key')
-                new_ref=self.vault.put(uid,'runpod',value)
-                body=dict(body,_prepared_ref=new_ref)
+            value=body.get('api_key')
+            if operation=='runpod_put' and (not isinstance(value,str) or not 10<=len(value)<=1024): raise HostedError(422,'Invalid API key')
+            credential_claim=uuid.uuid4().hex
+            def reserve(tx):
+                owner=tx.get('owners',uid)
+                active=tx.get('sessions',owner['session_id']) if owner else None
+                if active and not (active['observed_state']=='terminated' and active.get('cleanup_verified',False)):
+                    raise HostedError(409,'Terminate and verify cleanup before changing RunPod credentials')
+                conn=tx.get('connections',uid+'_runpod') or {'owner_uid':uid,'connected':False}
+                if conn.get('mutation_until',0)>now: raise HostedError(409,'Credential update already in progress')
+                conn.update(mutation_claim=credential_claim,mutation_until=now+120)
+                tx.set('connections',uid+'_runpod',conn)
+                return conn.get('credential_ref')
+            old_ref=self.store.transaction(reserve)
+            body=dict(body,_credential_claim=credential_claim)
+            try:
+                if operation=='runpod_put':
+                    new_ref=self.vault.put(uid,'runpod',value)
+                    body['_prepared_ref']=new_ref
+            except Exception:
+                self._release_credential_claim(uid,credential_claim)
+                raise
         # Provider quotations are read-only. Secret writes use a deterministic owner/idempotency
         # reference managed by vault; never place credential values in persisted request bodies.
         quote=None
@@ -76,9 +92,16 @@ class HostedService:
             result=self.store.transaction(apply)
         except Exception:
             if new_ref: self.vault.delete(new_ref)
+            if credential_claim: self._release_credential_claim(uid,credential_claim)
             raise
         if old_ref and old_ref!=new_ref: self.vault.delete(old_ref)
         return result
+    def _release_credential_claim(self, uid, claim):
+        def apply(tx):
+            c=tx.get('connections',uid+'_runpod')
+            if c and c.get('mutation_claim')==claim:
+                c.pop('mutation_claim',None); c.pop('mutation_until',None); tx.set('connections',uid+'_runpod',c)
+        self.store.transaction(apply)
     def _operation(self,tx,uid,op,b,key,now,quote):
         if op=='me': return {'uid':uid,'workspace_id':uid,'runpod_connected':bool((tx.get('connections',uid+'_runpod') or {}).get('connected'))}
         if op=='models': return {'models':self.catalog.models() if self.catalog else []}
@@ -97,10 +120,13 @@ class HostedService:
             pod=s.get('provider_ref') or s.get('pod_id')
             if not isinstance(pod,str) or not pod.isalnum(): raise HostedError(503,'Download unavailable')
             return {'url':'https://'+pod+'-8780.proxy.runpod.net/bundles/'+a['id'], 'download_token':a['download_token'],'sha256':a['sha256'],'size':a['size']}
-        if op=='drive': return {'connected':bool(tx.get('connections',uid+'_drive'))}
+        if op=='drive':
+            connection=tx.get('drive_connections',uid) or {}
+            return {'connected':connection.get('owner')==uid and connection.get('status')=='connected'}
         if op in {'runpod_put','runpod_delete'}:
             if self.vault is None: raise HostedError(503,'Credential vault unavailable')
             connection=tx.get('connections',uid+'_runpod') or {}
+            if connection.get('mutation_claim')!=b.get('_credential_claim'): raise HostedError(409,'Credential update fenced')
             if op=='runpod_put':
                 value=b.get('api_key')
                 if not isinstance(value,str) or not 10<=len(value)<=1024: raise HostedError(422,'Invalid API key')
@@ -113,6 +139,9 @@ class HostedService:
             if q['expires_at']<=now: raise HostedError(409,'Quote expired')
             mode=b.get('storage_mode')
             if mode not in {'device','drive'}: raise HostedError(422,'Invalid storage mode')
+            if mode=='drive':
+                drive=tx.get('drive_connections',uid) or {}
+                if drive.get('owner')!=uid or drive.get('status')!='connected': raise HostedError(409,'Connect Google Drive first')
             if mode=='device' and b.get('acknowledge_device_loss') is not True: raise HostedError(422,'Device loss acknowledgment required')
             active=tx.get('owners',uid)
             if active:
@@ -121,6 +150,7 @@ class HostedService:
             sid=uuid.uuid4().hex
             s={'id':sid,'owner_uid':uid,'desired_state':'running','observed_state':'requested','created_at':now,'expires_at':now+q['max_duration_seconds'],'quote':q,'request_name':'fm-'+sid,'storage_mode':mode,'epoch':0,'seq':-1,'lease_until':0}
             conn=tx.get('connections',uid+'_runpod')
+            if conn and conn.get('mutation_until',0)>now: raise HostedError(409,'Credential update in progress')
             if not conn or not conn.get('connected'): raise HostedError(409,'Connect RunPod first')
             s['credential_ref']=conn['credential_ref']
             tx.set('sessions',sid,s); tx.set('owners',uid,{'owner_uid':uid,'session_id':sid}); return self._safe(s)
@@ -210,13 +240,14 @@ class HostedService:
                 artifacts=b.get('artifacts',[])
                 if not artifacts or len(artifacts)>32: raise HostedError(422,'Completed job requires artifacts')
                 for a in artifacts:
+                    bounded(a.get('size',a.get('size_bytes')),1,67108864,'artifact size')
                     checksum=a.get('sha256',''); ref=a.get('file_ref') or a.get('id') or a.get('artifact_id','')
                     if len(checksum)!=64 or any(c not in '0123456789abcdef' for c in checksum) or not isinstance(ref,str) or not 1<=len(ref)<=2048: raise HostedError(422,'Invalid artifact metadata')
                     item={'id':a.get('artifact_id') or a.get('id') or uuid.uuid4().hex,'owner_uid':s['owner_uid'],'job_id':j['id'],'session_id':s['id'],'sha256':checksum,'file_ref':ref,'storage_mode':s['storage_mode']}
                     if s['storage_mode']=='device':
                         capability=a.get('download_token','')
                         if not isinstance(capability,str) or not 32<=len(capability)<=128 or not item['id'].isalnum() or len(item['id'])>128: raise HostedError(422,'Invalid download capability')
-                        item['size']=bounded(a.get('size',a.get('size_bytes')),1,1073741824,'artifact size'); item['download_token']=capability
+                        item['size']=bounded(a.get('size',a.get('size_bytes')),1,67108864,'artifact size'); item['download_token']=capability
                     if tx.get('artifacts',item['id']): raise HostedError(409,'Artifact already exists')
                     tx.set('artifacts',item['id'],item)
             j['status']=state

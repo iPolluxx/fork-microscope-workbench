@@ -84,3 +84,46 @@ def test_transaction_rollback(setup):
     def bad(tx): tx.set('x','id',{'a':1});raise ValueError()
     with pytest.raises(ValueError): s.store.transaction(bad)
     assert s.store.transaction(lambda tx: tx.get('x','id')) is None
+
+def test_credentials_retain_cleanup_key_and_failed_write_releases_claim(setup):
+    s,c,_=setup;sid=session(c)
+    assert request(c,'connections/runpod',{},key='delete',method='DELETE').status_code==409
+    assert request(c,'connections/runpod',{'api_key':'replacement123'},key='replace',method='PUT').status_code==409
+    s.store.transaction(lambda tx:tx.set('sessions',sid,dict(tx.get('sessions',sid),observed_state='terminated',cleanup_verified=True)))
+    class FailingVault:
+        def put(self,*a): raise RuntimeError('secret failure')
+        def delete(self,*a): raise AssertionError('Old credential must survive failed put')
+    s.vault=FailingVault()
+    with pytest.raises(RuntimeError): s.public('alice','runpod_put',{'api_key':'replacement123'},idempotency_key='fails')
+    conn=s.store.transaction(lambda tx:tx.get('connections','alice_runpod'))
+    assert conn['credential_ref']=='opaque-secret'
+    assert 'mutation_claim' not in conn
+
+def test_drive_status_and_admission_use_security_connection_schema(setup):
+    s,c,_=setup
+    request(c,'connections/runpod',{'api_key':'123456789012'},key='conn',method='PUT')
+    request(c,'quotes',{},key='quote')
+    assert request(c,'sessions',{'quote_id':'quote-alice','storage_mode':'drive'},key='start').status_code==409
+    s.store.transaction(lambda tx:tx.set('drive_connections','alice',{'owner':'alice','status':'connected'}))
+    assert request(c,'connections/drive',{},method='GET').json()['connected']
+    assert request(c,'sessions',{'quote_id':'quote-alice','storage_mode':'drive'},key='start').status_code==200
+
+def test_partial_artifacts_and_size_bounds(setup):
+    s,c,_=setup;sid=session(c)
+    jid=request(c,'jobs',{'session_id':sid,'command':{'config':config()}},key='job').json()['id']
+    e=s.enroll({'session_id':sid,'token':s.prepare_enrollment(sid)})
+    b={'session_id':sid,'worker_token':e['worker_token'],'epoch':e['epoch']};s.poll(b)
+    artifact={'id':'partial1','sha256':'a'*64,'size_bytes':67108865,'download_token':'x'*32}
+    assert c.post('/api/hosted/v1/worker/report',json=dict(b,job_id=jid,status='cancelled',artifacts=[artifact])).status_code==422
+    artifact['size_bytes']=100
+    assert c.post('/api/hosted/v1/worker/report',json=dict(b,job_id=jid,status='cancelled',artifacts=[artifact])).status_code==200
+    assert len(request(c,'artifacts',{},method='GET').json()['artifacts'])==1
+
+def test_invalid_config_and_quote_expiry(setup):
+    s,c,now=setup;sid=session(c)
+    bad=config();bad['scan']['temperature']=None
+    assert request(c,'jobs',{'session_id':sid,'command':{'config':bad}},key='bad').status_code==422
+    wrong=config();wrong['model']['revision']='another-pin'
+    assert request(c,'jobs',{'session_id':sid,'command':{'config':wrong}},key='wrong').status_code==422
+    now[0]+=301
+    assert request(c,'sessions',{'quote_id':'quote-alice','storage_mode':'device','acknowledge_device_loss':True},key='expired').status_code==409
