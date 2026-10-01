@@ -87,7 +87,7 @@ class Lifecycle:
             if not self.claim(session["id"], {"create_attempted": True, "observed_state": "provisioning"}):
                 return {"observed_state": "provisioning"}
             body = {"name": name, "image": self.image, "gpu": {"id": quote["gpu_id"], "count": 1},
-                    "cloud": "SECURE", "disk": quote["disk_gb"], "ports": ["8780/http"] if session.get("destination") == "device" else [], "startSsh": False,
+                    "cloud": "SECURE", "disk": quote["disk_gb"], "ports": ["8780/http"] if session.get("storage_mode", session.get("destination")) == "device" else [], "startSsh": False,
                     "startJupyter": False, "env": dict(env, FM_CONTROL_PLANE_URL=self.url,
                         FM_DASHBOARD_ORIGIN=self.dashboard_origin,
                         FM_SESSION_ID=session["id"], FM_EXPIRES_AT=str(session["expires_at"]),

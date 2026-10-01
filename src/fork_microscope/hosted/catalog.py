@@ -44,7 +44,7 @@ class Catalog:
             raise ValueError("No available compatible GPU")
         gpu = min(candidates, key=lambda g: g["price"]["secure"])
         rate = gpu["price"]["secure"]
-        return {"id": uuid.uuid4().hex, "model_id": model["id"], "model_revision": model["revision"],
+        return {"id": uuid.uuid4().hex, "model_id": model["id"], "model_revision": model["revision"], "revision": model["revision"],
             "gpu_id": gpu["id"], "gpu_count": 1, "cloud": "SECURE", "gpu_usd_per_hour": rate,
             "disk_gb": self.disk_gb, "disk_usd_per_gb_hour": self.disk_rate,
             "disk_rate_source": self.disk_rate_source, "quoted_at": now, "expires_at": now + self.ttl,
