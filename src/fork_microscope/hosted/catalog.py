@@ -44,12 +44,19 @@ class Catalog:
             raise ValueError("No available compatible GPU")
         gpu = min(candidates, key=lambda g: g["price"]["secure"])
         rate = gpu["price"]["secure"]
-        return {"id": uuid.uuid4().hex, "model_id": model["id"], "model_revision": model["revision"], "revision": model["revision"],
+        estimate = (rate + self.disk_gb * self.disk_rate) * duration / 3600
+        allowance = body.get("max_usd")
+        if allowance is not None:
+            if isinstance(allowance, bool) or not isinstance(allowance, (float, int)) or not math.isfinite(allowance) or allowance <= 0:
+                raise ValueError("Invalid USD allowance")
+            if estimate > allowance:
+                raise ValueError("Estimate exceeds USD allowance")
+        return {"id": uuid.uuid4().hex, "max_usd": allowance, "model_id": model["id"], "model_revision": model["revision"], "revision": model["revision"],
             "gpu_id": gpu["id"], "gpu_count": 1, "cloud": "SECURE", "gpu_usd_per_hour": rate,
             "disk_gb": self.disk_gb, "disk_usd_per_gb_hour": self.disk_rate,
             "disk_rate_source": self.disk_rate_source, "quoted_at": now, "expires_at": now + self.ttl,
             "max_duration_seconds": duration, "startup_allowance_seconds": self.startup,
             "export_reserve_seconds": self.export,
-            "estimated_usd": (rate + self.disk_gb * self.disk_rate) * duration / 3600,
+            "estimated_usd": estimate,
             "availability": gpu["availability"], "price_is_estimate": True,
             "cost_notice": "Availability is not reserved. Billing and cleanup delays can exceed this estimate."}
