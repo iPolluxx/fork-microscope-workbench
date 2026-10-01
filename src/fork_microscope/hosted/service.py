@@ -167,6 +167,7 @@ class HostedService:
             
             try: config=validate_config(command.get('config'))
             except (ValueError,TypeError,KeyError): raise HostedError(422,'Invalid investigation config')
+            if config['lens'] is not None and config['lens']['profile'] not in s['quote'].get('lens_profiles',[]): raise HostedError(422,'Lens profile unavailable for hosted model')
             if config['model']['model_id']!=s['quote']['model_id'] or config['model']['revision']!=s['quote'].get('revision'): raise HostedError(422,'Model identity differs from immutable quote')
             reserve=s['quote'].get('export_reserve_seconds',60)
             if config['limits']['max_seconds']>s['expires_at']-now-reserve: raise HostedError(422,'Job time exceeds remaining session allowance')

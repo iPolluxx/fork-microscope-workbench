@@ -32,7 +32,7 @@ def session(c):
     assert result.status_code==200,result.text
     return result.json()['id']
 def config():
-    c=json.loads(Path('configs/investigation-example.json').read_text());c['model'].update(model_id='test',revision='abc');c['limits']['max_seconds']=100;return c
+    c=json.loads(Path('configs/investigation-example.json').read_text());c['model'].update(model_id='test',revision='abc');c['limits']['max_seconds']=100;c['lens']=None;return c
 
 def test_owner_idempotency_and_http_auth(setup):
     s,c,_=setup; sid=session(c)
@@ -127,3 +127,9 @@ def test_invalid_config_and_quote_expiry(setup):
     assert request(c,'jobs',{'session_id':sid,'command':{'config':wrong}},key='wrong').status_code==422
     now[0]+=301
     assert request(c,'sessions',{'quote_id':'quote-alice','storage_mode':'device','acknowledge_device_loss':True},key='expired').status_code==409
+
+
+def test_hosted_lens_requires_explicit_catalog_allowlist(setup):
+    s,c,_=setup;sid=session(c)
+    bad=config();bad['lens']={'profile':'../../private','layers':[1],'before':1,'after':1,'top_k':2}
+    assert request(c,'jobs',{'session_id':sid,'command':{'config':bad}},key='lens').status_code==422
