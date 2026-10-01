@@ -184,7 +184,12 @@ def test_authenticated_http_client_roundtrip(tmp_path,archive,config,monkeypatch
     from fork_microscope.workflow_cli import Client
     s=FakeService(archive);m=WorkflowManager(s,tmp_path/'jobs')
     monkeypatch.setattr(microscope_server,'WORKFLOWS',m)
-    server=ThreadingHTTPServer(('127.0.0.1',0),microscope_server.Handler)
+    user_agents=[]
+    class RecordingHandler(microscope_server.Handler):
+        def do_GET(self):
+            user_agents.append(self.headers.get('User-Agent'))
+            return super().do_GET()
+    server=ThreadingHTTPServer(('127.0.0.1',0),RecordingHandler)
     server.worker_access=WorkerAccess('127.0.0.1','x'*40)
     thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
     url=f'http://127.0.0.1:{server.server_port}'
@@ -199,6 +204,7 @@ def test_authenticated_http_client_roundtrip(tmp_path,archive,config,monkeypatch
         out=tmp_path/'bundle.json';client.export('workflow-export?id='+first['id'],out)
         bundle=json.loads(out.read_text());validate_bundle(bundle)
         assert import_bundle(bundle,tmp_path/'destination'/'live-runs')['run_ids']==done['runs']
+        assert user_agents and set(user_agents)=={'fork-microscope/0.1'}
     finally:server.shutdown();server.server_close()
 
 

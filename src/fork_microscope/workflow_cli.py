@@ -14,7 +14,7 @@ class Client:
         if parts.scheme=='http' and parts.hostname not in ('127.0.0.1','localhost','::1'):raise ValueError('Remote worker credentials require HTTPS. Use an SSH tunnel for HTTP localhost.')
         self.url=url.rstrip('/');self.token=token or os.environ.get('FORK_WORKER_TOKEN','')
     def request(self,path,payload=None):
-        headers={'Content-Type':'application/json'}
+        headers={'Content-Type':'application/json','User-Agent':'fork-microscope/0.1'}
         if self.token:headers['Authorization']='Bearer '+self.token
         req=urllib.request.Request(self.url+'/api/live/'+path,data=None if payload is None else json.dumps(payload,allow_nan=False).encode(),headers=headers)
         # Never forward a bearer token through an HTTP redirect.
