@@ -133,3 +133,30 @@ def test_hosted_lens_requires_explicit_catalog_allowlist(setup):
     s,c,_=setup;sid=session(c)
     bad=config();bad['lens']={'profile':'../../private','layers':[1],'before':1,'after':1,'top_k':2}
     assert request(c,'jobs',{'session_id':sid,'command':{'config':bad}},key='lens').status_code==422
+
+def test_device_receipt_owner_and_idempotency_terminate_only_after_all_artifacts(setup):
+    s,c,_=setup;sid=session(c)
+    jid=request(c,'jobs',{'session_id':sid,'command':{'config':config()}},key='job').json()['id']
+    e=s.enroll({'session_id':sid,'token':s.prepare_enrollment(sid)})
+    b={'session_id':sid,'worker_token':e['worker_token'],'epoch':e['epoch']};s.poll(b)
+    artifacts=[{'id':aid,'sha256':'a'*64,'size_bytes':100,'download_token':'x'*32} for aid in ('artifact1','artifact2')]
+    s.report(dict(b,job_id=jid,status='completed',artifacts=artifacts))
+    assert request(c,'artifacts/artifact1/received',{},uid='bob',key='receipt').status_code==404
+    assert request(c,'artifacts/artifact1/received',{},key='receipt1').json()['desired_state']=='running'
+    assert request(c,'artifacts/artifact2/received',{},key='receipt2').json()['desired_state']=='terminated'
+    assert request(c,'artifacts/artifact2/received',{},key='receipt2').json()['received']
+
+def test_drive_automatic_termination_after_verified_export(setup):
+    s,c,_=setup
+    request(c,'connections/runpod',{'api_key':'123456789012'},key='conn',method='PUT');request(c,'quotes',{},key='quote')
+    s.store.transaction(lambda tx:tx.set('drive_connections','alice',{'owner':'alice','status':'connected'}))
+    sid=request(c,'sessions',{'quote_id':'quote-alice','storage_mode':'drive'},key='start').json()['id']
+    jid=request(c,'jobs',{'session_id':sid,'command':{'config':config()}},key='job').json()['id']
+    e=s.enroll({'session_id':sid,'token':s.prepare_enrollment(sid)})
+    b={'session_id':sid,'worker_token':e['worker_token'],'epoch':e['epoch']};s.poll(b)
+    report=dict(b,job_id=jid,status='completed',artifacts=[{'id':'drive1','sha256':'a'*64,'size_bytes':100,'file_ref':'df_file'}])
+    with pytest.raises(HostedError): s.report(report)
+    assert request(c,'sessions/'+sid,{},method='GET').json()['desired_state']=='running'
+    verified=[];s.artifact_verify=lambda *a:verified.append(a)
+    s.report(report)
+    assert verified and request(c,'sessions/'+sid,{},method='GET').json()['desired_state']=='terminated'

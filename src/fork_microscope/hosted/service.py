@@ -36,7 +36,7 @@ class HostedService:
         try:
             if len(json.dumps(body,allow_nan=False).encode())>65536: raise HostedError(413,'Request too large')
         except (TypeError,ValueError): raise HostedError(422,'Invalid JSON values')
-        mutation=operation in {'quote','start','terminate','job','cancel','runpod_put','runpod_delete'}
+        mutation=operation in {'quote','start','terminate','job','cancel','runpod_put','runpod_delete','received'}
         if mutation and (not idempotency_key or len(idempotency_key)>128): raise HostedError(400,'Idempotency-Key required (maximum 128 characters)')
         request_digest=digest({'operation':operation,'id':resource_id,'body':body})
         idem=digest([uid,idempotency_key]) if mutation else None
@@ -112,6 +112,16 @@ class HostedService:
             tx.set('quotes',q['id'],q); return self._safe(q)
         if op in {'sessions','jobs','artifacts'}: return {op:[self._safe(v) for v in tx.list(op) if v['owner_uid']==uid]}
         if op in {'session','get_job'}: return self._safe(self._owned(tx,'sessions' if op=='session' else 'jobs',key,uid))
+        if op=='received':
+            a=self._owned(tx,'artifacts',key,uid)
+            if a['storage_mode']!='device': raise HostedError(409,'Device receipt required only for device exports')
+            a['received_at']=now; tx.set('artifacts',key,a)
+            j=self._owned(tx,'jobs',a['job_id'],uid)
+            s=self._owned(tx,'sessions',a['session_id'],uid)
+            if j['status'] in JOB_TERMINAL:
+                remaining=[item for item in tx.list('artifacts') if item['job_id']==j['id'] and item['storage_mode']=='device' and not item.get('received_at')]
+                if not remaining: s['desired_state']='terminated'; tx.set('sessions',s['id'],s)
+            return {'received':True,'desired_state':s['desired_state']}
         if op=='download':
             a=self._owned(tx,'artifacts',key,uid)
             s=self._owned(tx,'sessions',a['session_id'],uid)
@@ -252,7 +262,9 @@ class HostedService:
                     if tx.get('artifacts',item['id']): raise HostedError(409,'Artifact already exists')
                     tx.set('artifacts',item['id'],item)
             j['status']=state
-            if state in JOB_TERMINAL: j.pop('command',None); j['finished_at']=self.clock(); s['observed_state']='ready'
+            if state in JOB_TERMINAL:
+                j.pop('command',None); j['finished_at']=self.clock(); s['observed_state']='ready'
+                if s['storage_mode']=='drive': s['desired_state']='terminated'
             else: s['observed_state']='saving'
             tx.set('jobs',j['id'],j); tx.set('sessions',s['id'],s); return self._safe(j)
         return self.store.transaction(apply)
