@@ -67,6 +67,11 @@ class FirebaseTests(unittest.TestCase):
     def test_valid_identity_and_invite_normalised(self):
         self.assertEqual(self.make().verify(self.keys.token()), {"uid": "u1", "email": "ann@example.com"})
 
+    def test_revocation_uses_original_auth_time_not_refresh_issue_time(self):
+        revoker = Revoker()
+        self.make(revoker).verify(self.keys.token(auth_time=NOW-1000, iat=NOW-10))
+        self.assertEqual(revoker.seen, [('u1', NOW-1000)])
+
     def test_strict_claims_rejected(self):
         a = self.make()
         for over in (dict(aud="other"), dict(iss="https://securetoken.google.com/other"), dict(exp=NOW - 1),
@@ -223,6 +228,40 @@ class DriveTests(unittest.TestCase):
         s = self.auth.begin(owner)
         return self.auth.complete(s.state, "goodcode", s.binding)
 
+    def test_cached_access_token_observes_other_controller_revocation(self):
+        self.connect()
+        self.ctl.access_token('alice')
+        other = dr.DriveController(self.docs, self.vault, self.cfg, Secret('CLIENTSECRET'), self.g, lambda:self.t[0])
+        other.disconnect('alice')
+        with self.assertRaises(dr.NotFound): self.ctl.access_token('alice')
+
+    def test_upload_preparation_is_claimed_across_controllers(self):
+        import threading
+        self.connect()
+        record = self.ctl.register_file('alice', 'job1', 'evidence.json', len(self.g.content), hashlib.sha256(self.g.content).hexdigest())
+        other = dr.DriveController(self.docs, self.vault, self.cfg, Secret('CLIENTSECRET'), self.g, lambda:self.t[0])
+        entered, release = threading.Event(), threading.Event()
+        original = self.g.request
+        def paused(method, url, *args, **kwargs):
+            if method == 'POST' and '/upload/drive/' in url:
+                entered.set()
+                assert release.wait(5)
+            return original(method, url, *args, **kwargs)
+        self.g.request = paused
+        results, failures = [], []
+        def prepare():
+            try: results.append(self.ctl.create_upload_session('alice', record['file_ref']))
+            except Exception as exc: failures.append(exc)
+        thread = threading.Thread(target=prepare); thread.start()
+        try:
+            self.assertTrue(entered.wait(5))
+            with self.assertRaises(dr.DriveUnavailable): other.create_upload_session('alice', record['file_ref'])
+        finally: release.set(); thread.join(5)
+        self.assertEqual(failures, [])
+        repeated = other.create_upload_session('alice', record['file_ref'])
+        self.assertEqual(repeated.url.reveal(), results[0].url.reveal())
+        self.assertEqual(sum(method == 'POST' and '/upload/drive/' in url for method,url,*_ in self.g.log), 1)
+
     def test_process_local_refused_by_default(self):
         with self.assertRaises(ValueError):
             dr.DriveAuthorization(dr.MemoryDocs(), self.vault, self.cfg, Secret("x"), self.g)
@@ -287,7 +326,7 @@ class DriveTests(unittest.TestCase):
         post = [l for l in self.g.log if l[1].startswith(dr.UPLOAD)][0]
         self.assertEqual(post[2]["X-Upload-Content-Length"], str(f["size"]))
         self.assertEqual(json.loads(post[3])["parents"], ["FOLDER"])
-        with self.assertRaises(dr.DriveError): self.ctl.create_upload_session("alice", f["file_ref"])
+        self.assertEqual(self.ctl.create_upload_session("alice", f["file_ref"]).url.reveal(), cap.url.reveal())
         self.assertEqual(self.ctl.upload_status("alice", f["file_ref"])["state"], "pending")
         self.g.received = 1; self.assertEqual(self.ctl.upload_status("alice", f["file_ref"]), {"state": "partial", "received": 10})
         with self.assertRaises(dr.DriveError): self.ctl.confirm("alice", f["file_ref"])
@@ -306,7 +345,7 @@ class DriveTests(unittest.TestCase):
         with self.assertRaises(dr.IntegrityError): self.ctl.confirm("alice", f["file_ref"])
         self.assertEqual(self.ctl._file("alice", f["file_ref"])["status"], "corrupt")
         self.g.checksum = None; self.g.corrupt = True
-        f2 = self.register(); self.ctl.create_upload_session("alice", f2["file_ref"])
+        f2 = self.register(content=b"different-second-file"); self.ctl.create_upload_session("alice", f2["file_ref"])
         with self.assertRaises(dr.IntegrityError): self.ctl.confirm("alice", f2["file_ref"])
 
     def test_download_detects_tamper_after_confirm(self):

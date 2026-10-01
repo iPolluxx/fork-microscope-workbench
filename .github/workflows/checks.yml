@@ -18,6 +18,7 @@ jobs:
         with:
           node-version: '22'
       - run: ./scripts/setup.sh cpu
+      - run: uv pip install --python .venv/bin/python -r requirements/hosted.txt cryptography
       - run: .venv/bin/python -m pytest -q
       - run: node --test tests/test_*.mjs
       - run: .venv/bin/fork-microscope verify-upstream

@@ -4,6 +4,9 @@ import hashlib
 import json
 import shutil
 import sys
+import os
+import re
+from urllib.parse import urlsplit
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from scripts.build_dashboard import build, ROOT
 
@@ -23,6 +26,15 @@ def prepare():
         shutil.copy2(path,site/name)
     shutil.copy2(source/'build-manifest.json',site/'build-manifest.json')
     for name in ('Dockerfile','nginx.conf'):shutil.copy2(ROOT/'deploy'/'cloud-run'/name,target/name)
+    upstream=os.environ.get('FM_HOSTED_API_ORIGIN','')
+    if upstream:
+        p=urlsplit(upstream)
+        if p.scheme!='https' or not re.fullmatch(r'[a-z0-9.-]+',p.netloc) or p.path not in ('','/') or p.query or p.fragment:
+            raise ValueError('FM_HOSTED_API_ORIGIN must be a plain HTTPS service origin.')
+        config=(target/'nginx.conf').read_text()
+        proxy='location /api/hosted/v1/ {\n            access_log off;\n            client_max_body_size 64k;\n            proxy_pass https://HOST/api/hosted/v1/;\n            proxy_set_header Host HOST;\n            proxy_ssl_server_name on;\n            proxy_ssl_name HOST;\n            proxy_ssl_verify on;\n            proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;\n            proxy_buffering off;\n            proxy_request_buffering off;\n            proxy_read_timeout 90s;\n            add_header Cache-Control "no-store" always;\n        }'.replace('HOST',p.netloc)
+        config=config.replace('location /api/ { return 404; }',proxy+'\n        location /api/ { return 404; }')
+        (target/'nginx.conf').write_text(config)
     (target/'.dockerignore').write_text('*\n!Dockerfile\n!nginx.conf\n!site/\n!site/**\n')
     return target
 

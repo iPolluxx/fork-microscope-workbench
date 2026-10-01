@@ -5,12 +5,13 @@ export function validateHostedConfig(raw){
  if(raw?.enabled!==true)return {enabled:false};
  const url=new URL(raw.apiBase);
  if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw Error('Hosted API must use a configured HTTPS address.');
+ if(typeof location!=='undefined' && url.origin!==location.origin)throw Error('Host the API behind this website’s /api proxy so secure Google Drive consent works on phones.');
  if(!raw.firebase?.apiKey||!raw.firebase?.authDomain||!raw.firebase?.projectId)throw Error('Hosted Google sign-in is not configured.');
  return {...raw,apiBase:url.href.replace(/\/$/,'')};
 }
 export class HostedError extends Error{constructor(message,status){super(message);this.status=status;}}
 export class HostedClient{
- constructor(config,{fetcher=fetch,uuid=()=>crypto.randomUUID()}={}){this.config=validateHostedConfig(config);this.fetcher=fetcher;this.uuid=uuid;this.user=null;this.epoch=0;this.pending=new Map();}
+ constructor(config,{fetcher=(...args)=>globalThis.fetch(...args),uuid=()=>crypto.randomUUID()}={}){this.config=validateHostedConfig(config);this.fetcher=fetcher;this.uuid=uuid;this.user=null;this.epoch=0;this.pending=new Map();}
  setUser(user){if(this.user?.uid!==user?.uid){this.epoch++;this.pending.clear();}this.user=user;}
  intent(method,path,body={}){return {method,path,body:structuredClone(body),key:this.uuid(),epoch:this.epoch};}
  async request(path,{method='GET',body,key,epoch=this.epoch}={}){
@@ -21,7 +22,7 @@ export class HostedClient{
   if(epoch!==this.epoch||user!==this.user)throw Error('Account changed. Refresh your workspace.');
   const headers={Authorization:'Bearer '+token};if(body!==undefined)headers['Content-Type']='application/json';
   if(method!=='GET'){if(!key)throw Error('Mutation requires an idempotency key.');headers['Idempotency-Key']=key;}
-  const response=await this.fetcher(this.config.apiBase+'/api/hosted/v1'+path,{method,headers,credentials:'omit',cache:'no-store',...(body!==undefined?{body:JSON.stringify(body)}:{})});
+  const response=await this.fetcher(this.config.apiBase+'/api/hosted/v1'+path,{method,headers,credentials:'same-origin',cache:'no-store',...(body!==undefined?{body:JSON.stringify(body)}:{})});
   if(epoch!==this.epoch||user!==this.user)throw Error('Account changed. Refresh your workspace.');
   let result;try{result=await response.json();}catch{throw new HostedError('The hosted service did not return a readable response.',response.status);}
   if(!response.ok)throw new HostedError(result.detail||'Hosted request failed.',response.status);
@@ -38,7 +39,7 @@ export function assertDownloadCapability(data,artifactId){
  if(!/^[a-f0-9]{64}$/.test(data.sha256))throw Error('Missing evidence checksum.');
  return url;
 }
-export async function readVerifiedBundle(data,artifactId,{fetcher=fetch,cryptoImpl=crypto,maxBytes=MAX_BUNDLE_BYTES}={}){
+export async function readVerifiedBundle(data,artifactId,{fetcher=(...args)=>globalThis.fetch(...args),cryptoImpl=crypto,maxBytes=MAX_BUNDLE_BYTES}={}){
  const url=assertDownloadCapability(data,artifactId);
  const response=await fetcher(url.href,{headers:{Authorization:'Bearer '+data.download_token},credentials:'omit',cache:'no-store',redirect:'error'});
  return readVerifiedResponse(response,data,{cryptoImpl,maxBytes});

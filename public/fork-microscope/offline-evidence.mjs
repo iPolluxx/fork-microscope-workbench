@@ -4,6 +4,37 @@ import {classifyPreview,validateRule} from './classification.mjs';
 const MAX_BYTES=64*1024*1024, ID=/^[a-f0-9]{32}$/;
 const privateKeys=new Set(['token','access_token','api_key','authorization','password','worker_url','hub_cache','cache_dir','checkpoint_path','local_path','path','weights_path','worker_job','error','__proto__','prototype','constructor']);
 let bundles=[],active=false,initializing,originalFetch;
+const HOSTED_OWNER_KEY='fork-hosted-evidence-owner';
+let hostedOwner='';
+try{hostedOwner=globalThis.localStorage?.getItem(HOSTED_OWNER_KEY)||'';}catch{}
+export function evidenceDatabaseName(owner=hostedOwner){
+  if(owner && (typeof owner!=='string'||owner.length>128))throw Error('Invalid evidence owner.');
+  return owner?'fork-microscope-hosted-evidence-'+encodeURIComponent(owner):'fork-microscope-evidence';
+}
+export async function installHostedEvidence(bundle,{ownerUid}={}){
+  if(typeof ownerUid!=='string'||!ownerUid||ownerUid.length>128)throw Error('Sign in before saving hosted evidence.');
+  if(hostedOwner && hostedOwner!==ownerUid)await clearHostedEvidence(hostedOwner);
+  hostedOwner=ownerUid;bundles=[];active=false;
+  globalThis.localStorage?.setItem(HOSTED_OWNER_KEY,ownerUid);
+  return installOfflineEvidence(bundle);
+}
+export async function getHostedEvidence(ownerUid,checksum){
+  if(ownerUid!==hostedOwner||!checksum)return null;
+  const saved=(await savedBundles()).find(bundle=>bundle.sha256===checksum);
+  if(saved)await validateOfflineBundle(saved);
+  return saved||null;
+}
+export async function clearHostedEvidence(ownerUid){
+  if(!ownerUid)return;
+  const name=evidenceDatabaseName(ownerUid);
+  globalThis.localStorage?.removeItem('fork-hosted-delivery-index:'+ownerUid);
+  if(hostedOwner===ownerUid){hostedOwner='';bundles=[];active=false;globalThis.localStorage?.removeItem(HOSTED_OWNER_KEY);globalThis.localStorage?.removeItem('fork-evidence-source');}
+  if(typeof indexedDB!=='undefined')await new Promise((resolve,reject)=>{const request=indexedDB.deleteDatabase(name);request.onsuccess=resolve;request.onerror=()=>reject(Error('Could not clear hosted evidence cache.'));request.onblocked=()=>reject(Error('Close other evidence tabs to finish clearing this account’s cache.'));});
+  globalThis.dispatchEvent?.(new Event('offline-evidence-change'));
+}
+// Clear rendered evidence in other tabs immediately on logout/account change.
+globalThis.addEventListener?.('storage',event=>{if(event.key===HOSTED_OWNER_KEY){const previous=hostedOwner;hostedOwner=event.newValue||'';bundles=[];active=false;globalThis.dispatchEvent?.(new Event('offline-evidence-change'));if(previous&&previous!==hostedOwner)globalThis.location?.reload();}});
+
 const same=(a,b)=>canonical(a)===canonical(b);
 const fail=message=>{throw new Error(message);};
 const array=(v,label)=>Array.isArray(v)?v:fail(`Missing ${label}.`);
@@ -166,7 +197,7 @@ export async function validateOfflineBundle(bundle){
   }
   return bundle;
 }
-function database(){return new Promise((resolve,reject)=>{const req=indexedDB.open('fork-microscope-evidence',1);req.onupgradeneeded=()=>req.result.createObjectStore('bundles',{keyPath:'sha256'});req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(Error('Browser evidence storage is unavailable.'));});}
+function database(){return new Promise((resolve,reject)=>{const req=indexedDB.open(evidenceDatabaseName(),1);req.onupgradeneeded=()=>req.result.createObjectStore('bundles',{keyPath:'sha256'});req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(Error('Browser evidence storage is unavailable.'));});}
 async function savedBundles(){const db=await database();try{return await new Promise((resolve,reject)=>{const request=db.transaction('bundles').objectStore('bundles').getAll();request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}finally{db.close();}}
 async function persist(bundle){const db=await database();try{await new Promise((resolve,reject)=>{const tx=db.transaction('bundles','readwrite');tx.objectStore('bundles').put(bundle);tx.oncomplete=resolve;tx.onerror=()=>reject(Error('Browser storage is full or unavailable. Keep your exported file; nothing was overwritten.'));});}finally{db.close();}}
 function assertNoConflicts(bundle,existing){const known=new Map();for(const b of existing)for(const kind of ['runs','lenses','patches','responses','edits','captures'])for(const a of b.payload[kind]??[])known.set(a.id,a);for(const kind of ['runs','lenses','patches','responses','edits','captures'])for(const a of bundle.payload[kind]??[])if(known.has(a.id)&&!same(known.get(a.id),a))fail('Different evidence already uses this ID. Existing data was not replaced.');}

@@ -343,3 +343,7 @@ need an explicit new follow-up before running scoped operations.
 
 See [the complete investigation workflow](INVESTIGATION-WORKFLOW.md) for response
 search, matching rules, the three scan controls and interpretation limits.
+
+## Optional invited hosted compute
+
+The opt-in [Hosted compute beta](HOSTED-COMPUTE.md) adds Google sign-in, a saved RunPod connection, bounded sessions, and Google Drive or device evidence delivery. It requires a separately configured backend; the static website alone cannot allocate compute. The manual worker instructions above remain valid. The hosted configuration ships disabled until deployment acceptance is complete.

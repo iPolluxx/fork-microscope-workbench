@@ -169,3 +169,7 @@ For agents: begin with the [operating guide](docs/agents/OPERATING-GUIDE.md) and
 - `configs/`: examples, with a [selection guide](configs/README.md).
 - `docker/` and `deploy/`: optional worker and static-host deployment tooling.
 - Ignored runtime directories such as `live-runs/`, `workspace-data/`, and `dist/` are local state, not public repository contents. Do not delete them to clean Git; export evidence before removing a working installation.
+
+## Optional hosted compute beta
+
+An opt-in account-based compute path is implemented for invited users: connect RunPod once, approve a bounded session, and save evidence to your Google Drive or this device. It is **disabled until the operator configures and validates the hosted services**; publishing the static dashboard alone does not enable it. [Researcher guide](docs/HOSTED-COMPUTE.md) · [Operator setup](deploy/hosted/README.md). Existing manual workers and offline imports remain supported.

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — invited hosted compute
+
+- Optional Google-authenticated workspace and saved RunPod credentials, separate public API/controller identities, and owner-isolated jobs and evidence pointers.
+- Pinned model catalog, reviewed price estimate, bounded worker sessions, cancellation, uncertain-create reconciliation and verified provider cleanup.
+- Outbound worker workflow and checksum-confirmed Drive/device delivery into Explorer; per-account browser caches clear on sign-out.
+- Disabled by default. Automated tests use fake providers and saved evidence; live cloud/IAM/GPU acceptance remains required before enabling hosted compute.
+
 - Clean RunPod installation now selects Python 3.13.12 and checks uv >= 0.11.2; the template’s Python 3.13.8 failed to import the pinned PyTorch.
 
 ## Portfolio candidate — 2026-10-01 (not yet deployed)

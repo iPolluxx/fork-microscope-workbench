@@ -10,7 +10,7 @@ test('only Firebase user token sent, same approved intent retains retry identity
  const calls=[];let fail=true;const client=new HostedClient(config,{uuid:()=> 'same-intent',fetcher:async(url,options)=>{calls.push({url,options});if(fail){fail=false;throw Error('lost connection');}return new Response(JSON.stringify({id:'session'}));}});client.setUser(user('alice'));
  const intent=client.intent('POST','/sessions',{quote_id:'quote',storage_mode:'device',acknowledge_device_loss:true});
  await assert.rejects(client.submit(intent));assert.equal((await client.submit(intent)).id,'session');
- assert.equal(calls[0].options.headers['Idempotency-Key'],calls[1].options.headers['Idempotency-Key']);assert.equal(calls[0].options.body,calls[1].options.body);assert.equal(calls[0].options.headers.Authorization,'Bearer id-token-alice');assert.equal(calls[0].options.credentials,'omit');
+ assert.equal(calls[0].options.headers['Idempotency-Key'],calls[1].options.headers['Idempotency-Key']);assert.equal(calls[0].options.body,calls[1].options.body);assert.equal(calls[0].options.headers.Authorization,'Bearer id-token-alice');assert.equal(calls[0].options.credentials,'same-origin');
 });
 test('account switch invalidates pending request before transport',async()=>{let resolve;let calls=0;const client=new HostedClient(config,{fetcher:async()=>{calls++;return new Response('{}');}});client.setUser({uid:'alice',getIdToken:()=>new Promise(r=>resolve=r)});const pending=client.request('/me');client.setUser(user('bob'));resolve('alice-token');await assert.rejects(pending,/Account changed/);assert.equal(calls,0);});
 test('old approved intent cannot be replayed for a new account',async()=>{const client=new HostedClient(config);client.setUser(user('alice'));const intent=client.intent('POST','/sessions',{});client.setUser(user('bob'));await assert.rejects(client.submit(intent),/previous account/);});
@@ -28,3 +28,9 @@ test('Drive bytes use authenticated backend relay, never an OAuth token in brows
  assert.equal(calls[1].url,'https://api.example/api/hosted/v1/artifacts/drive-artifact/content');
  assert.equal(calls[1].options.headers.Authorization,'Bearer id-token-alice');assert.equal(calls[1].options.redirect,'error');
 });
+
+ test('default fetch preserves browser receiver binding',async()=>{
+ const original=globalThis.fetch;
+ globalThis.fetch=async function(){assert.equal(this,globalThis);return new Response('{}');};
+ try {const client=new HostedClient(config);client.setUser(user('alice'));assert.deepEqual(await client.request('/me'),{});} finally {globalThis.fetch=original;}
+ });

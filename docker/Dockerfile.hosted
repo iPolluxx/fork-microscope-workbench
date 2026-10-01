@@ -1,0 +1,22 @@
+# Managed worker: app/dependencies only. No keys, model weights, personal evidence,
+# or upstream research source in distributed layers.
+FROM python:3.13.12-slim-bookworm
+ENV PYTHONUNBUFFERED=1 UV_PYTHON_DOWNLOADS=never UV_LINK_MODE=copy \
+    PATH=/opt/fork-microscope/.venv/bin:$PATH HF_HOME=/workspace/huggingface \
+    OTRECON_FORCE_RUPTURES=1
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates tini \
+    && rm -rf /var/lib/apt/lists/* && pip install --no-cache-dir uv==0.11.2
+WORKDIR /opt/fork-microscope
+COPY requirements/ requirements/
+RUN uv venv --python /usr/local/bin/python .venv \
+    && uv pip sync --python .venv/bin/python --index https://download.pytorch.org/whl/cu128 \
+       --index-strategy unsafe-best-match requirements/cuda.lock \
+    && uv pip install --python .venv/bin/python --no-deps -r requirements/lens.txt \
+    && uv cache clean
+COPY pyproject.toml README.md LICENSE ./
+COPY src/ src/
+COPY docker/hosted-start.sh docker/hosted-start.sh
+RUN uv pip install --python .venv/bin/python --no-deps --editable . \
+    && chmod +x docker/hosted-start.sh
+EXPOSE 8780
+ENTRYPOINT ["/usr/bin/tini", "--", "/opt/fork-microscope/docker/hosted-start.sh"]

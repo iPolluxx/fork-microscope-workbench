@@ -43,3 +43,7 @@ Evidence sent to an agent can be processed by that agent's model provider; local
 storage does not mean the content never leaves the machine. Never commit profile
 files, worker tokens, ownership ledgers or private evidence. Published demo
 investigations are separate from private profiles.
+
+## Optional managed hosted mode
+
+The direct worker remains single-owner. The optional hosted backend adds Firebase authentication, invited accounts, server-side ownership, separate per-user workers, private provider credentials and independently scheduled cleanup. The checked-in hosted configuration is disabled pending operator setup and deployed security acceptance. These protections do not make exposing an unauthenticated direct worker safe. See [hosted deployment](deploy/hosted/README.md). Saved evidence is user-owned (Drive or device), with no permanent central evidence library.

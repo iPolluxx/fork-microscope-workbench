@@ -177,7 +177,7 @@ class FirebaseAuthenticator:
         now = self.clock()
         num = lambda k: claims.get(k) if isinstance(claims.get(k), (int, float)) and not isinstance(claims.get(k), bool) else None
         exp, iat, auth_time = num("exp"), num("iat"), num("auth_time")
-        if None in (exp, iat, auth_time):
+        if None in (exp, iat, auth_time) or any(not __import__("math").isfinite(v) for v in (exp, iat, auth_time)):
             raise AuthenticationError("times")
         if exp <= now - 0 or iat > now + SKEW or auth_time > now + SKEW:
             raise AuthenticationError("expired")
@@ -190,7 +190,7 @@ class FirebaseAuthenticator:
         if not isinstance(email, str) or "@" not in email or claims.get("email_verified") is not True:
             raise AuthenticationError("email")
         if self.revocation is not None:
-            self.revocation.check(uid, int(iat))
+            self.revocation.check(uid, int(auth_time))
         if not self.invites.is_invited(email, uid):
             raise NotInvitedError("not invited")
         return {"uid": uid, "email": _norm(email)}

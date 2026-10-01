@@ -240,9 +240,10 @@ class DriveController(_Base):
                 except VaultError: pass
 
     def access_token(self, owner) -> Secret:
+        c = self._conn(owner)  # Revocation in another controller process takes effect here.
         with self._tlock:
             t = self._tokens.get(owner)
-        if t and t[1] > self.clock() + 60:
+        if t and t[1] > self.clock() + 60 and t[2] == c["refresh_ref"]:
             return t[0]
         c = self._conn(owner)
         try:
@@ -259,7 +260,7 @@ class DriveController(_Base):
             raise DriveUnavailable("Could not refresh Drive access.")
         tok = Secret(body["access_token"])
         with self._tlock:
-            self._tokens[owner] = (tok, self.clock() + int(body.get("expires_in", 300)))
+            self._tokens[owner] = (tok, self.clock() + int(body.get("expires_in", 300)), c["refresh_ref"])
         return tok
 
     def _api(self, owner, method, url, headers=None, body=None, ok=(200,)):
@@ -310,11 +311,18 @@ class DriveController(_Base):
                 and isinstance(size, int) and not isinstance(size, bool) and 0 < size <= MAX_ARTIFACT_BYTES):
             raise DriveError("Invalid artifact registration.")
         self._conn(owner)
-        ref = "df_" + _secrets.token_hex(16)
+        ref = "df_" + hashlib.sha256((owner+"\0"+job_id+"\0"+name+"\0"+sha256).encode()).hexdigest()[:32]
         f = dict(file_ref=ref, owner=owner, job_id=job_id, name=name, size=size, sha256=sha256, mime=mime,
                  status="registered", session_ref=None, drive_file_id=None, created_at=self.clock())
-        self._save(f)
-        return self.public_file(f)
+        def register(tx):
+            previous = tx.get('drive_files', ref)
+            if previous:
+                if any(previous[k] != f[k] for k in ('owner','job_id','name','size','sha256','mime')):
+                    raise DriveError('Artifact identity collision.')
+                return previous
+            tx.set('drive_files', ref, f)
+            return f
+        return self.public_file(self.docs.transaction(register))
 
     @staticmethod
     def public_file(f):
@@ -322,9 +330,23 @@ class DriveController(_Base):
 
     def create_upload_session(self, owner, file_ref) -> UploadCapability:
         import json
-        f = self._file(owner, file_ref)
-        if f["status"] != "registered":
-            raise DriveError("Upload session already created for this artifact.")
+        claim = _secrets.token_hex(16)
+        def reserve(tx):
+            current = tx.get('drive_files', str(file_ref))
+            if not current or current.get('owner') != owner:
+                raise NotFound('Artifact not registered.')
+            if current['status'] == 'session':
+                return current
+            if current['status'] == 'creating' and current.get('claim_until', 0) > self.clock():
+                raise DriveUnavailable('Upload preparation in progress; retry shortly.')
+            if current['status'] not in ('registered', 'creating'):
+                raise DriveError('Artifact upload already completed.')
+            current.update(status='creating', claim=claim, claim_until=self.clock()+120)
+            tx.set('drive_files', file_ref, current)
+            return current
+        f = self.docs.transaction(reserve)
+        if f['status'] == 'session':
+            return UploadCapability(Secret(self._session_url(owner, f)), f['size'], f['sha256'], f['session_expires_at'])
         folder = self.ensure_folder(owner)
         meta = {"name": f["name"], "parents": [folder], "mimeType": f["mime"],
                 "appProperties": {"fm_sha256": f["sha256"], "fm_file_ref": f["file_ref"], "fm_job": f["job_id"]}}
@@ -342,7 +364,12 @@ class DriveController(_Base):
         except VaultError:
             raise DriveUnavailable("Could not store the upload session.") from None
         f.update(status="session", session_ref=sref, session_expires_at=self.clock() + UPLOAD_TTL)
-        self._save(f)
+        def finish(tx):
+            current = tx.get('drive_files', file_ref)
+            if not current or current.get('claim') != claim:
+                raise DriveUnavailable('Upload preparation superseded; retry.')
+            tx.set('drive_files', file_ref, f)
+        self.docs.transaction(finish)
         return UploadCapability(Secret(loc), f["size"], f["sha256"], f["session_expires_at"])
 
     def _session_url(self, owner, f):

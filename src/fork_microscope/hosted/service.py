@@ -203,7 +203,7 @@ class HostedService:
         def apply(tx):
             s=tx.get('sessions',b.get('session_id',''))
             if not s or not s.get('enrollment_hash') or not hmac.compare_digest(s['enrollment_hash'],token_hash(str(b.get('token','')))) or s['enrollment_expires_at']<=self.clock() or s['desired_state']!='running': raise HostedError(401,'Invalid enrollment')
-            s.pop('enrollment_hash'); s['worker_hash']=token_hash(bearer); s['epoch']+=1; s['seq']=-1; s['lease_until']=min(self.clock()+90,s['expires_at']); s['worker_last_heartbeat_at']=self.clock(); s['observed_state']='ready'; tx.set('sessions',s['id'],s)
+            s.pop('enrollment_hash'); s['worker_hash']=token_hash(bearer); s['epoch']+=1; s['seq']=-1; s['lease_until']=min(self.clock()+90,s['expires_at']); s['worker_last_heartbeat_at']=self.clock(); s['observed_state']='ready'; s['idle_since']=self.clock(); tx.set('sessions',s['id'],s)
             return {'worker_token':bearer,'epoch':s['epoch'],'lease_until':s['lease_until']}
         return self.store.transaction(apply)
     def _worker(self,tx,b):
@@ -220,7 +220,7 @@ class HostedService:
             if j.get('cancel_requested'): return {'action':'cancel','job_id':j['id']}
             if j['status']!='queued': return {'action':'wait','job_id':j['id']}
             j.update(status='running',epoch=s['epoch'],started_at=self.clock(),dispatch_ack_deadline=self.clock()+60); tx.set('jobs',j['id'],j)
-            s['observed_state']='running'; tx.set('sessions',s['id'],s)
+            s['observed_state']='running'; s['has_started_job']=True; tx.set('sessions',s['id'],s)
             return {'action':'run','job_id':j['id'],'command':j['command'],'model':s['quote'].get('model_id'),'epoch':s['epoch'],'expires_at':s['expires_at'],'destination':s['storage_mode']}
         return self.store.transaction(apply)
     def heartbeat(self,b):
@@ -231,11 +231,31 @@ class HostedService:
             active=b.get('active_job_id')
             if active:
                 j=tx.get('jobs',active)
-                if j and j['session_id']==s['id'] and j.get('epoch')==s['epoch']: j['dispatch_acknowledged']=True; j.pop('command',None); tx.set('jobs',j['id'],j)
+                if j and j['session_id']==s['id'] and j.get('epoch')==s['epoch']:
+                    j['dispatch_acknowledged']=True; j.pop('command',None)
+                    progress=b.get('progress')
+                    if progress is not None:
+                        if not isinstance(progress,dict) or set(progress)!={'phase','completed','total'} or progress['phase'] not in {'loading','generating','scanning','refining','inspecting','saving'}:
+                            raise HostedError(422,'Invalid progress')
+                        for field in ('completed','total'):
+                            if type(progress[field]) is not int or not 0<=progress[field]<=10**9: raise HostedError(422,'Invalid progress count')
+                        j['progress']=progress
+                    tx.set('jobs',j['id'],j)
             s['worker_last_heartbeat_at']=self.clock(); s['seq']=seq; s['lease_until']=min(self.clock()+90,s['expires_at']); tx.set('sessions',s['id'],s)
             return {'lease_until':s['lease_until'],'desired_state':s['desired_state']}
         return self.store.transaction(apply)
     def report(self,b):
+        # Remote verification must never run inside a retried DB transaction (or
+        # while the in-memory transaction lock is held by split-app tests).
+        def inspect(tx):
+            s=self._worker(tx,b);j=self._owned(tx,'jobs',b.get('job_id',''),s['owner_uid'])
+            if j['session_id']!=s['id'] or j.get('epoch')!=s['epoch']: raise HostedError(409,'Job fenced')
+            return s,j
+        snapshot,job=self.store.transaction(inspect)
+        state=b.get('status')
+        if snapshot['storage_mode']=='drive' and job['status'] not in JOB_TERMINAL and state in JOB_TERMINAL and (state=='completed' or b.get('artifacts')):
+            if not self.artifact_verify: raise HostedError(503,'Drive verification unavailable')
+            self.artifact_verify(snapshot,job,b.get('artifacts',[]))
         def apply(tx):
             s=self._worker(tx,b); j=self._owned(tx,'jobs',b.get('job_id',''),s['owner_uid'])
             if j['session_id']!=s['id'] or j.get('epoch')!=s['epoch']: raise HostedError(409,'Job fenced')
@@ -245,9 +265,6 @@ class HostedService:
                 if j['status']==state: return self._safe(j)
                 raise HostedError(409,'Job already terminal')
             if state in JOB_TERMINAL and (state=='completed' or b.get('artifacts')):
-                if s['storage_mode']=='drive':
-                    if not self.artifact_verify: raise HostedError(503,'Drive verification unavailable')
-                    self.artifact_verify(s,j,b.get('artifacts',[]))
                 artifacts=b.get('artifacts',[])
                 if not artifacts or len(artifacts)>32: raise HostedError(422,'Completed job requires artifacts')
                 for a in artifacts:
@@ -264,7 +281,7 @@ class HostedService:
             j['status']=state
             if state in JOB_TERMINAL:
                 j.pop('command',None); j['finished_at']=self.clock(); s['observed_state']='ready'
-                if s['storage_mode']=='drive': s['desired_state']='terminated'
+                if s['storage_mode']=='drive' or not b.get('artifacts'): s['desired_state']='terminated'
             else: s['observed_state']='saving'
             tx.set('jobs',j['id'],j); tx.set('sessions',s['id'],s); return self._safe(j)
         return self.store.transaction(apply)
@@ -297,6 +314,10 @@ class HostedService:
                         if j['session_id']==s['id'] and j['status'] in {'running','saving'}:
                             j['status']='interrupted'; j.pop('command',None); tx.set('jobs',j['id'],j)
                     s.pop('worker_hash',None); s['desired_state']='terminated'
+                if s['desired_state']=='terminated':
+                    for j in tx.list('jobs'):
+                        if j['session_id']==s['id'] and j['status']=='queued':
+                            j.update(status='cancelled',finished_at=now);j.pop('command',None);tx.set('jobs',j['id'],j)
                 if s.get('claim_until',0)>now: continue
                 s['claim_token']=uuid.uuid4().hex; s['claim_until']=now+120
                 tx.set('sessions',s['id'],s); claimed.append(s)

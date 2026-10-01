@@ -72,3 +72,5 @@ investigate, not proof of an internal decision. Read the actual continuations an
 check answer matching. J-lens maps selected internal states to vocabulary
 rankings; layers do not emit those words, and a readout does not establish intent
 or causation. A run with no contrasting outcomes is still a valid result.
+
+- [Optional hosted compute](HOSTED-COMPUTE.md): invited account flow, user-owned storage, limitations and operator setup. Disabled until deployment acceptance.

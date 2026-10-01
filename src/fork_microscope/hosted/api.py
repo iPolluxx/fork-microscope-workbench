@@ -34,7 +34,7 @@ def create_app(service, authenticator, *, worker_enabled=False, controller_enabl
         return value
     def endpoint(operation, mutation=False):
         async def handle(request: Request):
-            uid=identity(request)
+            uid=await run_in_threadpool(identity,request)
             return await run_in_threadpool(service.public,uid,operation,await body(request) if mutation and request.method not in {'DELETE'} else {},request.path_params.get('resource_id'),request.headers.get('idempotency-key'))
         return handle
     base='/api/hosted/v1'

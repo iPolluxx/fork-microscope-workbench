@@ -45,11 +45,19 @@ Python modules below live in `src/fork_microscope/`. All tests live in `tests/`.
 
 ## Hosting and ownership
 
-The hosted dashboard is static. Multiple visitors can use it while connecting directly to their own worker addresses; the static host does not run models or store their run archives. Worker credentials default to browser session storage, with explicit trusted-browser persistence available; they are sent only to the selected worker. Remote workers require access protection, an appropriate allowed origin and a browser-reachable HTTPS endpoint; follow the [connection guide](HOSTED-DASHBOARD.md).
+The default dashboard deployment is static. Multiple visitors can use it while connecting directly to their own worker addresses; the static host does not run models or store their run archives. Worker credentials default to browser session storage, with explicit trusted-browser persistence available; they are sent only to the selected worker. Remote workers require access protection, an appropriate allowed origin and a browser-reachable HTTPS endpoint; follow the [connection guide](HOSTED-DASHBOARD.md).
 
 A worker is a **single-owner compute service**, with shared state for its attached model, jobs and files. It is not a multi-tenant backend with per-user accounts, independent authorization or isolated job storage. Giving several people the same worker token gives them access to that worker. One owner per worker is the supported deployment boundary.
 
-The application does not provision cloud hardware, handle provider billing, mount storage automatically or terminate rented machines. Model weights, credentials, arbitrary local run archives and generated validation outputs are excluded from Git. The curated attendance demo is the explicitly included saved-evidence exception. Ephemeral machines require exporting results before deletion.
+The direct-worker path does not provision cloud hardware, handle provider billing, mount storage automatically or terminate rented machines. Model weights, credentials, arbitrary local run archives and generated validation outputs are excluded from Git. The curated attendance demo is the explicitly included saved-evidence exception. Ephemeral machines require exporting results before deletion.
+
+### Optional invited hosted mode
+
+`hosted/` adds a separate multi-user control plane while preserving one owner per GPU worker. Firebase verifies invited users; public API operations authorize every session, job and artifact against that owner. A separate OIDC-authenticated controller reads vault credentials, obtains RunPod quotes, reconciles lifecycle state and verifies Google Drive uploads. Firestore stores coordination metadata; Secret Manager stores credentials. Workers poll outbound for an approved job and invoke the existing investigation coordinator.
+
+The browser approves an estimate and a bounded session. A Scheduler-driven controller enforces cleanup independently of the browser. Unknown creates remain fenced until reconciled; manual attention is required if deletion cannot be confirmed. Drive evidence is user-owned; attended device delivery is acknowledged only after checksum validation and browser persistence. There is no central permanent evidence bucket. Hosted account caches are separate from existing personal offline imports and are cleared on sign-out.
+
+This mode ships disabled and initially permits one pinned Qwen model. The local test suite uses fake providers and saved evidence. Cloud IAM, OAuth, containers and a real budgeted GPU run still need deployment acceptance. See [Hosted compute](HOSTED-COMPUTE.md) and [operator setup](../deploy/hosted/README.md). Full-collection Firestore metadata queries are suitable only for a small invited beta; retention/indexed owner queries are necessary before growing the service substantially.
 
 ## Reproducibility and limits
 
