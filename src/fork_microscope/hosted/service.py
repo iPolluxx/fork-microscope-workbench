@@ -221,7 +221,7 @@ class HostedService:
             active=b.get('active_job_id')
             if active:
                 j=tx.get('jobs',active)
-                if j and j['session_id']==s['id'] and j.get('epoch')==s['epoch']: j['dispatch_acknowledged']=True; tx.set('jobs',j['id'],j)
+                if j and j['session_id']==s['id'] and j.get('epoch')==s['epoch']: j['dispatch_acknowledged']=True; j.pop('command',None); tx.set('jobs',j['id'],j)
             s['worker_last_heartbeat_at']=self.clock(); s['seq']=seq; s['lease_until']=min(self.clock()+90,s['expires_at']); tx.set('sessions',s['id'],s)
             return {'lease_until':s['lease_until'],'desired_state':s['desired_state']}
         return self.store.transaction(apply)
