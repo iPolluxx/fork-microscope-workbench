@@ -19,7 +19,7 @@ from fork_microscope.hosted.service import HostedError
 ROOT = Path(__file__).resolve().parents[1]
 QWEN = "Qwen/Qwen2.5-1.5B-Instruct"
 PIN = "989aa7980e4cf806f80c7fef2b1adb7bc71aa306"
-GPU = {"id": "NVIDIA A40", "secure": True, "memory": 48, "availability": "HIGH", "price": {"secure": 0.4}}
+GPU = {"id": "NVIDIA A40", "manufacturer": "NVIDIA", "secure": True, "memory": 48, "availability": "HIGH", "price": {"secure": 0.4}}
 RUNPOD_KEY = "rp_super_secret_key"
 
 

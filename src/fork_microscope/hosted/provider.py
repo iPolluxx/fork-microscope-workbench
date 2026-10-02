@@ -44,7 +44,8 @@ class RunPod:
     def _request(self, method, path, body=None):
         try:
             status, result = self.transport(method, "https://api.runpod.io/v2" + path,
-                {"Authorization": "Bearer " + self._key, "Content-Type": "application/json"}, body)
+                {"Authorization": "Bearer " + self._key, "Content-Type": "application/json",
+                 "User-Agent": "ForkMicroscope/0.1 (+https://github.com/iPolluxx/fork-microscope-workbench)"}, body)
         except Exception:
             raise (CreateUncertain() if method == "POST" else ProviderError()) from None
         if type(status) is not int:
@@ -70,7 +71,7 @@ class RunPod:
         for gpu in data["gpus"]:
             if (not isinstance(gpu, dict) or not isinstance(gpu.get("id"), str) or not gpu["id"]
                 or type(gpu.get("memory")) not in (int, float) or not math.isfinite(gpu["memory"])
-                or gpu["memory"] <= 0 or not isinstance(gpu.get("price"), dict)
+                or gpu["memory"] < 0 or not isinstance(gpu.get("price"), dict)
                 or ("secure" in gpu and not isinstance(gpu["secure"], bool))
                 or ("availability" in gpu and not isinstance(gpu["availability"], str))):
                 raise ProviderError()

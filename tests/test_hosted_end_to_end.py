@@ -29,7 +29,7 @@ class HttpWorker:
 @pytest.fixture
 def system():
     now=[1000.]
-    provider=FakeRunPod([{'id':'gpu','secure':True,'memory':24,'price':{'secure':.5},'availability':'HIGH'}])
+    provider=FakeRunPod([{'id':'gpu','manufacturer':'NVIDIA','secure':True,'memory':24,'price':{'secure':.5},'availability':'HIGH'}])
     apps=create_test_apps(users={u:{'uid':u,'email':u+'@example.test'} for u in ('alice','bob')},runpod=provider,google_transport=NoGoogle(),clock=lambda:now[0])
     return apps,TestClient(apps.public,base_url=apps.public_config.public_url),TestClient(apps.controller),provider,now
 

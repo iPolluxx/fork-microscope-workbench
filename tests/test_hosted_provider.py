@@ -6,7 +6,7 @@ from fork_microscope.hosted.lifecycle import Lifecycle
 
 class HostedProviderTests(unittest.TestCase):
     def setUp(self):
-        self.provider = FakeRunPod([{"id": "gpu", "secure": True, "memory": 24,
+        self.provider = FakeRunPod([{"id": "gpu", "manufacturer": "NVIDIA", "secure": True, "memory": 24,
             "price": {"secure": .5}, "availability": "HIGH"}])
         self.catalog = Catalog(lambda body: self.provider, disk_usd_per_gb_hour=.0001, disk_rate_source="operator configured")
         self.quote = self.catalog.quote({"model_id": self.catalog.models()[0]["id"]}, 10)
@@ -32,6 +32,20 @@ class HostedProviderTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.catalog.quote({"model_id": self.quote["model_id"]}, 10)
 
+    def test_live_unknown_catalog_entry_and_cuda_compatibility(self):
+        unknown = {"id": "unknown", "manufacturer": "UNKNOWN", "memory": 0,
+                   "price": {"secure": 0}, "secure": False, "availability": "NONE"}
+        amd = dict(self.provider.catalog[0], id="AMD", manufacturer="AMD", price={"secure": .01})
+        rows = [unknown, amd, self.provider.catalog[0]]
+        seen = []
+        def transport(method, url, headers, body):
+            seen.append(headers)
+            return 200, {"gpus": rows}
+        provider = RunPod("test-key", transport)
+        catalog = Catalog(lambda body: provider, disk_usd_per_gb_hour=0, disk_rate_source="test")
+        self.assertEqual(catalog.quote({"model_id": self.quote["model_id"]}, 10)["gpu_id"], "gpu")
+        self.assertTrue(seen[0]["User-Agent"].startswith("ForkMicroscope/"))
+
     def test_uncertain_create_recovers_without_duplicate(self):
         self.provider.uncertain_create = True
         self.tick()
@@ -39,6 +53,17 @@ class HostedProviderTests(unittest.TestCase):
         self.tick()
         self.assertEqual(self.provider.creates, 1)
         self.assertEqual(self.session["provider_ref"], "fake1")
+
+    def test_definite_rejection_can_finish_cleanup_without_recreating(self):
+        def reject(body):
+            raise ProviderError(400)
+        self.provider.create_pod = reject
+        self.tick()
+        self.assertTrue(self.session["create_rejected"])
+        self.tick()
+        self.assertEqual(self.session["observed_state"], "terminated")
+        self.assertTrue(self.session["cleanup_verified"])
+        self.assertFalse(self.session["uncertain_resource_fence"])
 
     def test_deadline_delete_verified_retries(self):
         self.tick()
@@ -96,6 +121,7 @@ class HostedProviderTests(unittest.TestCase):
         self.tick()
         pod = self.provider.pods["fake1"]
         self.assertEqual(pod["ports"], ["8780/http"])
+        self.assertEqual(pod["gpu"]["minCudaVersion"], "12.8")
         self.assertEqual(pod["env"]["FM_DASHBOARD_ORIGIN"], "https://controller.example")
 
     def test_accepted_quote_survives_controller_delay(self):

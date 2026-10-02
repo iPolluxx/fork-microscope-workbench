@@ -33,7 +33,8 @@ class Catalog:
         candidates = []
         for gpu in self.provider_factory(body).gpus():
             rate = gpu.get("price", {}).get("secure")
-            if (gpu.get("secure") and gpu.get("memory", 0) >= model["minimum_vram_gb"]
+            if (gpu.get("manufacturer") == "NVIDIA" and gpu.get("secure")
+                and gpu.get("memory", 0) >= model["minimum_vram_gb"]
                 and gpu.get("availability") in {"LOW", "MEDIUM", "HIGH"}
                 and isinstance(rate, (float, int)) and math.isfinite(rate) and rate > 0):
                 candidates.append(gpu)

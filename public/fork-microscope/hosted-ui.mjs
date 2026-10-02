@@ -21,7 +21,7 @@ function renderSession(){
  $('job-status').textContent=job?`Investigation: ${job.status}. ${job.status==='interrupted'?'The worker lost its lease. It will not rerun this job automatically.':''}`:'Waiting to queue the investigation.';
  $('deadline').textContent=`Compute deadline: ${new Date(session.expires_at*1000).toLocaleString()}. ${session.observed_state==='terminated'?'Provider deletion confirmed.':''}`;
  const progress=job?.progress;const phase={loading:'Loading the model',generating:'Generating the original response',scanning:'Sampling continuations',refining:'Refining selected intervals',inspecting:'Inspecting activations',saving:'Saving evidence'};
- $('progress').textContent=progress?`${phase[progress.phase]||'Working'}${progress.total>0?` · ${progress.completed} of ${progress.total}`:''}.`:terminalJobs.has(job?.status)?'Open the evidence library below to inspect saved results.':'The worker will report progress here once it starts.';
+ $('progress').textContent=terminalJobs.has(job?.status)?'Execution has ended. Open saved evidence below for results or the failure details.':progress?`${phase[progress.phase]||'Working'}${progress.total>0?` · ${progress.completed} of ${progress.total}`:''}.`:terminalJobs.has(job?.status)?'Open the evidence library below to inspect saved results.':'The worker will report progress here once it starts.';
  if(session.manual_attention_required||session.cleanup_status==='credential_blocked')$('progress').textContent='Compute cleanup needs attention. Check the specific session in your RunPod account before starting another.';
  $('cancel').disabled=!job||terminalJobs.has(job.status);$('terminate').disabled=session.desired_state==='terminated'||session.observed_state==='terminated';
  $('quote-button').disabled=!terminalSessions.has(session.observed_state);$('approve').disabled=true;
@@ -38,7 +38,7 @@ async function refreshWorkspace(){
 function schedulePoll(){stopPolling();pollTimer=setTimeout(()=>poll().catch(error),3000);}
 async function poll(){
  if(!session||!client.user)return;const epoch=accountEpoch,sid=session.id;
- try{const [updated,jobs]=await Promise.all([client.request('/sessions/'+encodeURIComponent(sid)),client.request('/jobs')]);if(epoch!==accountEpoch)return;session=updated;job=(jobs.jobs||[]).filter(j=>j.session_id===sid).at(-1)||null;renderSession();
+ try{const [updated,jobs]=await Promise.all([client.request('/sessions/'+encodeURIComponent(sid)),client.request('/jobs')]);if(epoch!==accountEpoch)return;session=updated;$('error').textContent='';job=(jobs.jobs||[]).filter(j=>j.session_id===sid).at(-1)||null;renderSession();
  if(terminalJobs.has(job?.status)||job?.status==='saving')await refreshLibrary({autoDevice:true});
  if(!terminalSessions.has(session.observed_state))schedulePoll();else {for(const input of $('investigation-form').querySelectorAll('input,textarea,select'))input.disabled=false;await refreshLibrary();approvedIntent=null;jobIntent=null;quoteIntent=null;$('discard').disabled=false;invalidateQuote();}
  }catch(e){if(epoch!==accountEpoch)return;notice('Progress refresh failed. The independent controller still enforces the session deadline. Use Refresh progress to reconnect.');throw e;}
@@ -57,7 +57,7 @@ async function importArtifact(artifact,li,{download=false}={}){
  if(download)saveFile(bytes,artifact.id);
  if(artifact.storage_mode==='device')await mutation('received-'+artifact.id,'POST','/artifacts/'+encodeURIComponent(artifact.id)+'/received');
  downloaded.add(artifact.id);
- const link=document.createElement('a');link.href=explorerURL(result,bundle);link.textContent='Explore saved evidence →';li.querySelector('[data-explore]')?.remove();link.dataset.explore='';li.append(link);notice('Evidence checksum verified and saved in this account’s browser library. Keep a portable copy.');
+ const link=document.createElement('a');link.href=explorerURL(result,bundle);link.textContent='Explore saved evidence →';li.querySelector('[data-explore]')?.remove();link.dataset.explore='';li.append(link);const investigation=bundle.payload?.investigation;const detail=investigation?.status==='error'&&typeof investigation.message==='string'?` Run stopped: ${investigation.message.slice(0,1000)}`:'';notice('Evidence checksum verified and saved in this account’s browser library. Keep a portable copy.'+detail);
  }finally{downloading.delete(artifact.id);}
 }
 async function refreshLibrary({autoDevice=false}={}){

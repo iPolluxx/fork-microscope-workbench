@@ -27,6 +27,9 @@ def prepare():
     shutil.copy2(source/'build-manifest.json',site/'build-manifest.json')
     for name in ('Dockerfile','nginx.conf'):shutil.copy2(ROOT/'deploy'/'cloud-run'/name,target/name)
     upstream=os.environ.get('FM_HOSTED_API_ORIGIN','')
+    hosted=json.loads((source/'hosted-config.json').read_text())
+    if hosted.get('enabled') and not upstream:
+        raise ValueError('Hosted compute is enabled: set FM_HOSTED_API_ORIGIN to preserve the API proxy when deploying.')
     if upstream:
         p=urlsplit(upstream)
         if p.scheme!='https' or not re.fullmatch(r'[a-z0-9.-]+',p.netloc) or p.path not in ('','/') or p.query or p.fragment:

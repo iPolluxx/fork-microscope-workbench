@@ -76,7 +76,7 @@ class Lifecycle:
                 remaining = [p for p in provider.list_pods() if p.get("name") == name]
                 remaining.extend(p for p in (provider.get_pod(pod["id"]) for pod in pods) if p)
                 # If a POST crashed, absence is not proof it will never appear.
-                uncertain = session.get("create_attempted") and not session.get("provider_ref") and not pods
+                uncertain = session.get("create_attempted") and not session.get("create_rejected") and not session.get("provider_ref") and not pods
                 attention = bool(uncertain and now >= session["expires_at"] + self.uncertain_create_grace)
                 return {"desired_state": "terminated", "observed_state": "terminating" if remaining or uncertain else "terminated",
                         "cleanup_verified_at": None if remaining or uncertain else now,
@@ -109,7 +109,8 @@ class Lifecycle:
                 raise ValueError("Provider and Drive credentials forbidden in worker environment")
             if not self.claim(session["id"], {"create_attempted": True, "observed_state": "provisioning"}):
                 return {"observed_state": "provisioning"}
-            body = {"name": name, "image": self.image, "gpu": {"id": quote["gpu_id"], "count": 1},
+            body = {"name": name, "image": self.image,
+                    "gpu": {"id": quote["gpu_id"], "count": 1, "minCudaVersion": "12.8"},
                     "cloud": "SECURE", "disk": quote["disk_gb"], "ports": ["8780/http"] if session.get("storage_mode", session.get("destination")) == "device" else [], "startSsh": False,
                     "startJupyter": False, "env": dict(env, FM_CONTROL_PLANE_URL=self.url,
                         FM_DASHBOARD_ORIGIN=self.dashboard_origin,
@@ -120,7 +121,7 @@ class Lifecycle:
             except CreateUncertain:
                 return {"observed_state": "provisioning", "error_code": "create_outcome_pending"}
             except ProviderError:
-                return {"desired_state": "terminated", "observed_state": "terminating", "error_code": "create_rejected"}
+                return {"desired_state": "terminated", "observed_state": "terminating", "error_code": "create_rejected", "create_rejected": True}
             return {"provider_ref": pod["id"], "observed_state": "booting"}
         except ProviderError:
             return {"observed_state": "terminating" if terminate else session.get("observed_state", "provisioning"),

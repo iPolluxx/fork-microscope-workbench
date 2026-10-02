@@ -1,1 +1,10 @@
-{"enabled":false,"apiBase":"","firebase":{"apiKey":"","authDomain":"","projectId":"","appId":""}}
+{
+  "enabled": true,
+  "apiBase": "https://fork-microscope-wzyjs4vwsq-uc.a.run.app",
+  "firebase": {
+    "apiKey": "AIzaSyBgw3a4bsMPOH_h1KHkxTJ4nycS5eDAdkQ",
+    "authDomain": "mightdoit.firebaseapp.com",
+    "projectId": "mightdoit",
+    "appId": "1:879716207624:web:ac598be48b9ed82001d5bd"
+  }
+}

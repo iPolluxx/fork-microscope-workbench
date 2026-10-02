@@ -1,12 +1,12 @@
 # Deploy the invited hosted beta
 
-This is an optional backend, not a change to the statistical method. The existing static Cloud Run site remains usable without it. The checked-in `hosted-config.json` is disabled.
+This is an optional backend, not a change to the statistical method. The existing static Cloud Run site remains usable without it. The public configuration selects an invited hosted deployment; self-hosters must replace it with their own Firebase/API configuration, or set `enabled` to `false` for local/offline-only use.
 
 ## Components and identities
 
 Deploy the image built from `deploy/hosted/Dockerfile` twice:
 
-- **Public API:** `uvicorn fork_microscope.hosted.bootstrap:create_public_app --factory --host 0.0.0.0 --port 8080`. Firebase user-token and invite authentication on researcher routes; scoped session-token authentication on worker routes.
+- **Public API:** `uvicorn fork_microscope.hosted.bootstrap:create_public_app --factory --host 0.0.0.0 --port 8080 --no-access-log`. Firebase user-token and invite authentication on researcher routes; scoped session-token authentication on worker routes.
 - **Private controller:** use `create_controller_app` in the same command. No anonymous invoker. The public service account can invoke it; a distinct Scheduler account can invoke only reconciliation. App-level OIDC checks validate the exact audience, issuer, verified service-account email and operation.
 - **Firestore:** metadata, idempotency, leases, OAuth state and artifact pointers. No permanent transcript/bundle library. Unacknowledged job configuration is private and is erased on acknowledgement or terminal cancellation.
 - **Secret Manager:** provider keys, Drive refresh credentials and upload capabilities. The API can create/write/delete application secrets but cannot read payloads. The controller can read these secrets. Both may read only the separately mounted OAuth client secret. Grant metadata lookup needed for owner-label validation; do not grant broad project Editor.
@@ -42,13 +42,15 @@ The existing static Cloud Run context builder supports:
 FM_HOSTED_API_ORIGIN=https://YOUR-PUBLIC-API.run.app python scripts/build_cloud_dashboard.py
 ```
 
-It generates a fixed-upstream, TLS-verified Nginx proxy for that path only. No arbitrary URL proxy is exposed. API access logs are disabled at Nginx to avoid recording OAuth codes in callback queries; also configure platform request-log exclusions/redaction for the callback and never log authorization headers or payloads. Set `FM_PUBLIC_URL` to the dashboard origin so worker routes and OAuth use this proxy.
+It generates a fixed-upstream, TLS-verified Nginx proxy for that path only. No arbitrary URL proxy is exposed. Keep Uvicorn access logging disabled (`--no-access-log`) because callback URLs contain authorization codes. API access logs are disabled at Nginx to avoid recording OAuth codes in callback queries; also configure platform request-log exclusions/redaction for the callback and never log authorization headers or payloads. Set `FM_PUBLIC_URL` to the dashboard origin so worker routes and OAuth use this proxy.
 
-Set public `hosted-config.json` to `{ "enabled": true, "apiBase": "https://YOUR-DASHBOARD", "firebase": {...your Firebase web config...} }` before building. Firebase web config is public application metadata; never insert service-account keys, OAuth client secrets, RunPod keys or refresh tokens. The disabled default leaves the local/offline experience unchanged.
+Set public `hosted-config.json` to `{ "enabled": true, "apiBase": "https://YOUR-DASHBOARD", "firebase": {...your Firebase web config...} }` before building. Firebase web config is public application metadata; never insert service-account keys, OAuth client secrets, RunPod keys or refresh tokens. Setting `enabled` to `false` leaves the local/offline experience available without a hosted backend.
 
 ## Worker image
 
 Build `docker/Dockerfile.hosted`, record its registry digest, and configure that immutable digest in the controller. It contains dependencies/app code, not model weights, keys, evidence or the unlicensed upstream research checkout. Startup fetches the tested upstream commit on the user's worker. A public upstream checkout is not a redistribution license; obtain permission before changing to a bundled distribution.
+
+The managed worker uses CUDA 12.8. Catalog selection is restricted to NVIDIA GPUs, and provisioning requires a host advertising CUDA 12.8 or newer. Unknown/zero-memory catalog entries are ignored by the model compatibility filter. Availability remains a quote, not a capacity reservation.
 
 There is no SSH or general public execution API. Port 8780 is opened only for device-mode immutable bundle downloads, protected by per-artifact capabilities. Outbound worker polling handles commands. A worker uses `/workspace` for runs, response state, workflow journals, inspection artifacts and exports.
 
@@ -66,3 +68,5 @@ Build and publishing are operator actions; these files do not automatically buil
 Do not invite users if Scheduler is unhealthy. Alert on `terminating` sessions past deadline, reconciliation failures and stale heartbeats. On failure use the user's RunPod console to verify/delete the specific tagged pod; do not delete unrelated resources. A reported failed launch is not proof that no billable pod exists.
 
 There is no persistent central evidence bucket. Users own Drive evidence and exported files; the operator still handles credentials and necessary private metadata. Metadata retention/Firestore TTL must be configured for OAuth states and terminal/idempotency records, retaining unresolved cleanup records until provider deletion is verified. Do not TTL-delete active sessions.
+
+When deploying the enabled hosted dashboard, set `FM_HOSTED_API_ORIGIN` to the public API Cloud Run origin. The Cloud Run build refuses an enabled configuration without this upstream, preventing a static-only deployment from dropping the hosted API route.
