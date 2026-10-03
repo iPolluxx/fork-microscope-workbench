@@ -1,5 +1,7 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Fork Microscope · Hosted investigation</title><link rel="stylesheet" href="/hosted.css"></head><body>
-<header><a class="brand" href="/">Fork Microscope</a><nav><a href="/observatory.html">Explore saved evidence</a><a href="/live.html">Local compute</a></nav></header>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Fork Microscope · Hosted investigation</title><link rel="stylesheet" href="/hosted.css"><link rel="stylesheet" href="/app-navigation.css"></head><body>
+<!-- APP_NAVIGATION_START -->
+<header class="app-shell"><div class="app-shell-inner"><a class="app-brand" href="/workspace.html" aria-label="Fork microscope · Workspace"><span class="app-mark" aria-hidden="true">✳</span><span>Fork microscope<small>Research workbench</small></span></a><nav class="app-nav" aria-label="Main navigation"><a href="/workspace.html">Investigations</a><a href="/live.html">Setup</a><a href="/observatory.html">Explore</a><a href="/observatory.html#inspect">Inspect</a><a href="/hosted.html" aria-current="page">Compute</a><a href="/guide.html">Guide</a></nav></div></header>
+<!-- APP_NAVIGATION_END -->
 <main><p class="eyebrow">YOUR PERSONAL WORKSPACE</p><h1>Investigate a model with hosted compute.</h1><p class="intro">Sign in, connect your RunPod account, and approve a short GPU session. Your exported investigation belongs to you.</p>
 <p id="notice" role="status" aria-live="polite">Checking hosted configuration…</p><p id="error" role="alert"></p>
 <section aria-labelledby="account-heading"><h2 id="account-heading">1. Sign in</h2><p id="account-status">Hosted access is invite only.</p><div class="actions"><button id="sign-in" disabled>Continue with Google</button><button id="sign-out" hidden>Sign out</button></div></section>
@@ -17,4 +19,5 @@
 </section>
 <section id="session-panel" aria-labelledby="session-heading" hidden><h2 id="session-heading">4. Run and save</h2><p id="session-status" role="status" aria-live="polite"></p><p id="job-status"></p><p id="deadline" class="muted"></p><p id="progress" role="status"></p><div class="actions"><button id="refresh">Refresh progress</button><button id="cancel">Cancel investigation</button><button id="terminate" class="danger">Delete compute</button></div><p class="muted">Deleting compute destroys evidence still on the GPU. Drive saves survive deletion; device evidence must first be downloaded. Deletion is complete only after the provider confirms removal.</p></section>
 <section aria-labelledby="library-heading"><h2 id="library-heading">Your evidence library</h2><button id="library-refresh">Refresh library</button><ul id="library"></ul><p class="muted">Exact model, token, sampling, and checksum provenance travel with each bundle. Vocabulary readouts describe recorded activations and do not establish causality.</p></section>
-</div></main><script type="module" src="/hosted-ui.mjs"></script></body></html>
+</div></main><script type="module" src="/hosted-ui.mjs"></script><link rel="stylesheet" href="/product-theme.css?v=20261002">
+</body></html>

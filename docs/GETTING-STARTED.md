@@ -347,3 +347,11 @@ search, matching rules, the three scan controls and interpretation limits.
 ## Optional invited hosted compute
 
 The opt-in [Hosted compute beta](HOSTED-COMPUTE.md) adds Google sign-in, a saved RunPod connection, bounded sessions, and Google Drive or device evidence delivery. It requires a separately configured backend; the static website alone cannot allocate compute. The manual worker instructions above remain valid. The hosted configuration ships disabled until deployment acceptance is complete.
+
+## Navigation and saved results
+
+Every screen uses the same navigation: **Investigations → Setup → Explore → Inspect**, with **Compute** and **Guide** always available. Investigations opens your library; Setup prepares a prompt and keeps research settings in Advanced. Explore shows sampled outcome frequencies, and Inspect opens the analysis tools for selected evidence. The current investigation and checkpoint remain visible when moving between its views.
+
+**Compute** opens managed hosted compute. If you already run your own worker, use **Connect compute** to attach it. Saved evidence can be read without a GPU; additional sampling or a new inspection requires compatible connected compute. A saved-evidence status is not an error.
+
+The charcoal surfaces and mint navigation accents are shared across setup, compute, and results. Chart outcome colors retain their scientific meaning and are not navigation status colors.

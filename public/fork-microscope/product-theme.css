@@ -1,0 +1,78 @@
+/* Shared product language, based on the hosted investigation screen.
+   Page styles own layout; this sheet owns surfaces and controls.
+   Outcome, token, and intervention colors intentionally remain evidence-specific. */
+:root {
+  color-scheme: dark;
+  --fm-bg:#0c1318; --fm-surface:#111e25; --fm-inset:#09151c;
+  --fm-line:#2a3c46; --fm-control:#425962; --fm-text:#e5edef;
+  --fm-muted:#b3c7cf; --fm-accent:#8adccb; --fm-focus:#d6b987;
+  --ink:var(--fm-text); --text:var(--fm-text); --soft:var(--fm-muted);
+  --quiet:#9eb6c0; --muted:var(--fm-muted); --line:var(--fm-line);
+  --accent:var(--fm-accent); --panel:var(--fm-surface);
+  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+html,body {background:var(--fm-bg);color:var(--fm-text)}
+body {font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+body .universe {background:var(--fm-bg)}
+body .nebula,body .horizon,body .stars {opacity:0;animation:none}
+body h1 {font-family:inherit;font-weight:650;letter-spacing:-.035em;line-height:1.15}
+body h2,body h3 {font-family:inherit;font-weight:600;letter-spacing:-.015em}
+body a {color:var(--fm-accent);text-underline-offset:.2em}
+body :is(.eyebrow,.journey-eyebrow,.quick-beta) {color:var(--fm-accent)}
+body :is(.help,.muted,.micro,.stage-intro,.context-facts,.intro) {color:var(--fm-muted)}
+body :is(.glass,.panel,.investigation-card,.investigation-panel,.lens-panel,.patching-panel,.refinement-panel,.quick-investigation,.welcome-path,.response-review,.compute-environment,.summary-card,.metric,.boundary-dialog,.worker-dialog) {
+  background:var(--fm-surface);border-color:var(--fm-line);border-radius:16px;
+  box-shadow:none;backdrop-filter:none;
+}
+body :is(.quick-model,.quick-advanced,.manual-workflow,.compute-setup-disclosure,.configure-tools,.outcome-map,.inspection-section,.checkpoint-facts,.prefix-preview,.anchor-body) {
+  background:var(--fm-surface);border-color:var(--fm-line);border-radius:12px;
+}
+body :is(input,textarea,select) {font-family:inherit;background:var(--fm-inset);color:var(--fm-text);border-color:var(--fm-control);border-radius:8px;font-size:14px}
+body :is(input,textarea)::placeholder {color:#91a9b4;opacity:1}
+body input[type=checkbox],body input[type=radio] {accent-color:var(--fm-accent)}
+body button {font-family:inherit;border-radius:8px;box-shadow:none;text-shadow:none}
+body :is(button.primary,.quick-primary,.solid,.primary-action) {background:var(--fm-accent);border-color:var(--fm-accent);color:#07191a;font-weight:650}
+body :is(button.secondary,.text-button,.quiet,.boundary-launch,.app-page-tools button,.setup-steps button,.journey-nav button,.checkpoint-pages button) {background:transparent;color:var(--fm-text);border-color:var(--fm-control)}
+body button:disabled {opacity:.5;cursor:not-allowed}
+body :is(a,button,input,textarea,select,summary,[tabindex]):focus-visible {outline:3px solid var(--fm-focus);outline-offset:3px}
+body :is(pre,.trace,.anchor-text,.prefix-text,.continuation-text) {background:var(--fm-inset);border-color:var(--fm-line);color:var(--fm-text);text-shadow:none}
+body summary {color:var(--fm-text);line-height:1.55;min-height:36px}
+body :is(.notice,.source-note,.draft-banner,.context-notice) {background:#132b2c;color:#c0ddd6;border-color:#426f68}
+body :is(.error,.error-message,[role=alert]) {color:#ffb3a7}
+body :is(.overview-chart,.chart-options,.checkpoint-inspector,.investigation-history) {border-color:var(--fm-line)}
+body .page-heading {margin-top:32px}
+body .evidence-summary {color:var(--fm-muted)}
+body .investigation-context {background:var(--fm-surface);border-color:var(--fm-line);color:var(--fm-text);max-height:none}
+body .investigation-context .context-facts {color:var(--fm-muted)}
+body header.app-shell {background:#0c1318f7;border-bottom:1px solid var(--fm-line);box-shadow:none;backdrop-filter:blur(10px)}
+body .app-shell .app-shell-inner {padding-top:18px}
+body .app-shell .app-brand {color:var(--fm-text);font-weight:650}
+body .app-shell .app-brand small {color:var(--fm-muted)}
+body .app-shell .app-mark {color:var(--fm-accent)}
+body .app-shell .app-nav a {color:var(--fm-muted);border-radius:8px 8px 0 0}
+body .app-shell .app-nav a:hover {background:#172930;color:var(--fm-text)}
+body .app-shell .app-nav a[aria-current=page] {background:#172d30;color:var(--fm-accent);border-bottom-color:var(--fm-accent)}
+body>.worker-strip {background:var(--fm-inset);color:var(--fm-muted);border-color:var(--fm-line)}
+body>.worker-strip button {background:transparent;border-color:var(--fm-control);color:var(--fm-text)}
+body .worker-dialog {color:var(--fm-text)}
+body .worker-dialog button {background:var(--fm-accent);color:#07191a;border-color:var(--fm-accent)}
+body .worker-dialog input {background:var(--fm-inset);border-color:var(--fm-control)}
+body .quick-investigation {padding:28px;max-width:960px}
+body #hosted-entry {max-width:960px;margin:24px auto 0;padding:18px 24px;background:var(--fm-surface);border:1px solid var(--fm-line);border-radius:16px;display:flex;gap:20px;align-items:center;justify-content:space-between}
+body #hosted-entry p {margin:0;color:var(--fm-muted)}
+body #hosted-entry a {flex-shrink:0;font-weight:600}
+@media(max-width:760px) {
+ body .app-shell .app-shell-inner {padding:14px 16px 0}
+ body .app-shell nav.app-nav {gap:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding-bottom:8px}
+ body .app-shell .app-nav a {text-align:center;padding:10px 6px;font-size:13px;min-height:44px;border-radius:8px}
+ body header.app-shell {position:relative}
+ body .investigation-context {padding:14px 16px}
+ body .investigation-context nav {flex-wrap:wrap;overflow-wrap:anywhere}
+ body :is(input,select,textarea) {font-size:16px}
+ body .quick-investigation {padding:20px;margin-left:16px;margin-right:16px;width:auto}
+ body #hosted-entry {margin:16px;flex-direction:column;align-items:flex-start;gap:10px;padding:18px}
+ body>.worker-strip {flex-wrap:wrap;gap:8px}
+ body :is(.library,.overview-top,.inspection-heading) {flex-wrap:wrap}
+ html {scroll-padding-top:20px}
+}
+@media(prefers-reduced-motion:reduce){body header.app-shell {backdrop-filter:none}}

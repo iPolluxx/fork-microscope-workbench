@@ -61,7 +61,7 @@
 
   function draw() {
     if (!status) return;
-    status.textContent=`Compute: ${connectionState}${config?' · '+new URL(config.url).host:''}${telemetry?.runtime?.gpu_name?' · '+telemetry.runtime.gpu_name:''}`;status.setAttribute('role','status');
+    const saved=new URLSearchParams(location.search).has('evidence')||new URLSearchParams(location.search).has('demo');status.textContent=saved&&connectionState==='Disconnected'?'Saved evidence · no compute needed':`Compute: ${connectionState}${config?' · '+new URL(config.url).host:''}${telemetry?.runtime?.gpu_name?' · '+telemetry.runtime.gpu_name:''}`;status.setAttribute('role','status');
     button.textContent=config ? 'Manage compute' : 'Connect compute';
   }
   function init() {

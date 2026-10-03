@@ -9,11 +9,11 @@ import argparse
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGES = {'workspace.html': 'Setup', 'live.html': 'Setup',
+PAGES = {'workspace.html': 'Investigations', 'hosted.html': 'Compute', 'live.html': 'Setup',
          'observatory.html': 'Explore', 'compare.html': 'Explore',
          'guide.html': 'Guide', 'released-data.html': 'Explore'}
-LINKS = [('Setup', '/live.html'), ('Explore', '/observatory.html'),
-         ('Inspect & Test', '/observatory.html#inspect'), ('Guide', '/guide.html')]
+LINKS = [('Investigations', '/workspace.html'), ('Setup', '/live.html'), ('Explore', '/observatory.html'),
+         ('Inspect', '/observatory.html#inspect'), ('Compute', '/hosted.html'), ('Guide', '/guide.html')]
 PATTERN = re.compile(r'<!-- APP_NAVIGATION_START -->.*?<!-- APP_NAVIGATION_END -->', re.S)
 
 
