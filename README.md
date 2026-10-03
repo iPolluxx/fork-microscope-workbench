@@ -29,9 +29,9 @@ This figure is rendered from the saved evidence, not a screenshot or a new exper
 
 ## Choose your starting point
 
-- **New to the workflow?** Open **Guide** in Workspace for a visual tour, setting tradeoffs and the right document for your task.
+- **New to the workflow?** Open **Guide** for a visual tour, setting tradeoffs and the right document for your task.
 - **Have results already?** Open Explore and choose **Import evidence**. Complete investigation bundles are readable without a worker. An investigation bundle brings its related runs and saved readouts together.
-- **Ready to generate?** Use Setup for one investigation, Workspace for prompt sets, or the [CLI / agent workflow](docs/INVESTIGATION-WORKFLOW.md) for bounded automation.
+- **Ready to generate?** Use **Investigations → New investigation**, Advanced prompt sets for batches, or the [CLI / agent workflow](docs/INVESTIGATION-WORKFLOW.md) for bounded automation.
 
 ## What you can do
 
@@ -44,7 +44,7 @@ This figure is rendered from the saved evidence, not a screenshot or a new exper
 - Compare compatible saved runs and export evidence or prompt sets before replacing disposable hardware.
 - Inspect a pair’s first differing saved token with a compatible Jacobian lens, expand the token/layer view, and reuse captured activations within the same model session.
 
-The workflow is **Setup → Explore → Inspect & Test**, organized around one saved investigation. Workspace remains available for prompt sets and the library. Selections carry forward between areas. Starting the app downloads no model. Model attachment and sampling are explicit actions.
+Global navigation is **Investigations · Compute · Guide**. Inside an investigation, prepare the Question, Run, then Explore its graph, continuations, refinements and inspections. Prompt sets and manual controls remain under Advanced. Selections carry forward between areas. Starting the app downloads no model. Model attachment and sampling are explicit actions.
 
 ## Install from a checkout
 
@@ -90,7 +90,7 @@ The manual research workflow remains available for history, outcome search,
 final-marker parsing, independent references, custom passes and J-lens inspection.
 [First-session walkthrough](docs/GETTING-STARTED.md) explains settings, retries and cancellation.
 
-The static [dashboard](https://fork-microscope-wzyjs4vwsq-uc.a.run.app) opens Setup with a saved-demo link. Your own imported bundles and annotations stay in that browser's storage; export a backup before clearing browser data or switching devices. Conflicting worker IDs are rejected rather than silently overwriting evidence.
+The static [dashboard](https://fork-microscope-wzyjs4vwsq-uc.a.run.app) opens the Investigations library with a saved-demo link. Your own imported bundles and annotations stay in that browser's storage; export a backup before clearing browser data or switching devices. Conflicting worker IDs are rejected rather than silently overwriting evidence.
 
 For a small CPU smoke run after installation, in another terminal run:
 
@@ -100,7 +100,7 @@ For a small CPU smoke run after installation, in another terminal run:
 
 This downloads SmolLM2-135M-Instruct and runs real local inference. Return to the worker's Explore library to open the saved scan. It is a workflow check, not a promise of finding contrasting outcomes. See [the lens guide](docs/JACOBIAN-LENS.md) and [full investigation workflow](docs/INVESTIGATION-WORKFLOW.md) for details.
 
-For many questions, create a prompt set in **Workspace** and select which prompts to run. The worker executes them sequentially; each prompt gets its own trace and result. Editing a set does not change an already started batch.
+For many questions, create a prompt set under **Investigations → Prompt sets & batch work** and select which prompts to run. The worker executes them sequentially; each prompt gets its own trace and result. Editing a set does not change an already started batch.
 
 ## How to read the graph
 
@@ -118,7 +118,7 @@ See the [method and experiment reference](docs/REFERENCE.md), [numerical audit](
 python3 scripts/build_dashboard.py
 ```
 
-Publish the generated `dist/dashboard/` folder, or unpack `dist/fork-dashboard.zip`, on an HTTPS static host. It includes license notices and the curated attendance demo, and excludes upstream Python code/data, models, other local run records and credentials. The static home opens Setup; the demo remains available without compute. Each visitor connects an independently owned worker using a worker URL and access token. A worker can serve its own copy of the dashboard too.
+Publish the generated `dist/dashboard/` folder, or unpack `dist/fork-dashboard.zip`, on an HTTPS static host. It includes license notices and the curated attendance demo, and excludes upstream Python code/data, models, other local run records and credentials. The static home opens Investigations; the demo remains available without compute. Each visitor connects an independently owned worker using a worker URL and access token. A worker can serve its own copy of the dashboard too.
 
 [Hosted dashboard instructions](docs/HOSTED-DASHBOARD.md) cover allowed origins, authentication, browser local-network restrictions, SSH/HTTPS and backups. There are no central accounts, shared GPU service, or cloud-provider credentials in this design. A worker is for one user or trusted team; unrelated visitors need separate workers.
 
@@ -156,7 +156,7 @@ These checks use CPU or saved data; they do not start a GPU VM. Read [CONTRIBUTI
 
 ## Complete investigations
 
-Run a bounded scan → refinement → optional J-lens workflow from the CLI or an agent, or work interactively through Setup → Explore → Inspect & Test. Export the complete investigation, including saved responses, comparisons, conclusions and collected artifacts, as one file. See [the investigation workflow guide](docs/INVESTIGATION-WORKFLOW.md).
+Run a bounded scan → refinement → optional J-lens workflow from the CLI or an agent, or work interactively through Question → Run → Explore. Export the complete investigation, including saved responses, comparisons, conclusions and collected artifacts, as one file. See [the investigation workflow guide](docs/INVESTIGATION-WORKFLOW.md).
 
 For agents: begin with the [operating guide](docs/agents/OPERATING-GUIDE.md) and [complete workflow settings reference](docs/CONFIGURATION.md). Offline discovery: `fork-microscope investigation settings`. The optional [private MCP companion](docs/agents/MCP.md), included under `integrations/mcp/`, provides evidence browsing and bounded workflow tools. It is not installed by the checkout commands above; the hosted dashboard is not an MCP endpoint.
 

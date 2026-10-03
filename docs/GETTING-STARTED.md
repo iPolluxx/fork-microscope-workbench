@@ -131,14 +131,13 @@ the local dashboard and allow that dashboard's exact origin in the startup comma
 
 ## 4. Load a model
 
-Open **Setup** and expand the model controls after connecting compute.
+Open **Investigations → New investigation**, choose **My connected machine**, and connect it through **Compute**.
 
-1. Enter a Hugging Face model ID, such as `organization/model-name`, or choose
-   **Local directory on my worker** and enter a path on the worker.
-2. Click **Inspect model requirements**. This checks the model format and shows
+1. Enter a Hugging Face model ID, such as `organization/model-name`, or enter a local model path on that worker.
+2. Click **Check compatibility**. This checks the model format and shows
    what the worker can tell you about its hardware.
 3. Click **Load model** after inspection succeeds.
-4. Return to the prompt at the top of Setup. The selected model and resolved revision appear above it.
+4. Continue to the prompt in the same form. The selected model and resolved revision appear above it.
 
 The model runs where the worker runs. A local directory is a path on that worker,
 not an upload from your browser. For a private or gated Hugging Face model, sign
@@ -151,7 +150,7 @@ code, and pre-quantized checkpoints are not supported attachment routes.
 
 ## 5. Run a small first scan
 
-In **Setup**, write the prompt and list **Answers to watch for**, one per line.
+In **New investigation**, write the prompt and list **Answers to watch for**, one per line.
 Ask the model to finish with a distinct marker such as `CHOICE=A` or `CHOICE=B`,
 and track those strings. These labels are not automatically added to your prompt.
 The quick workflow uses literal text matching in the completed reply; mentions
@@ -310,7 +309,7 @@ Ctrl+S (Cmd+S) saves the set to the connected worker. Without a reachable worker
 the save action offers a portable file instead. It does not claim that file is
 stored on your worker. You can hide and reopen the introductory help.
 
-Setup reports the hardware the worker actually exposes. A CPU warning is
+The advanced manual workspace reports the hardware the worker actually exposes. A CPU warning is
 not a measured runtime estimate, and GPU availability is not a guarantee that
 your selected model fits. Model inspection and loading remain separate actions.
 
@@ -350,8 +349,10 @@ The opt-in [Hosted compute beta](HOSTED-COMPUTE.md) adds Google sign-in, a saved
 
 ## Navigation and saved results
 
-Every screen uses the same navigation: **Investigations → Setup → Explore → Inspect**, with **Compute** and **Guide** always available. Investigations opens your library; Setup prepares a prompt and keeps research settings in Advanced. Explore shows sampled outcome frequencies, and Inspect opens the analysis tools for selected evidence. The current investigation and checkpoint remain visible when moving between its views.
+Global navigation is **Investigations · Compute · Guide**. Investigations is the home library; select **New investigation** to prepare a question, model, outcome labels, and sampling settings. The same form supports a managed RunPod session or your connected machine. Managed execution requires a price review and explicit approval; direct execution uses your machine without provisioning a VM.
 
-**Compute** opens managed hosted compute. If you already run your own worker, use **Connect compute** to attach it. Saved evidence can be read without a GPU; additional sampling or a new inspection requires compatible connected compute. A saved-evidence status is not an error.
+Compute owns pairing, provider accounts, storage connections, active sessions and shutdown. Its header status is separate from evidence availability. Returning from Compute preserves a question draft in this tab; drafts are not a cross-device backup.
 
-The charcoal surfaces and mint navigation accents are shared across setup, compute, and results. Chart outcome colors retain their scientific meaning and are not navigation status colors.
+The library distinguishes bundles available in this browser, work on a connected machine, and account artifacts requiring retrieval. Import a complete bundle to browse without a worker or GPU. Account-owned browser evidence is cleared on sign-out; retain a portable export. Prompt sets and manual controls remain available as Advanced workflows.
+
+Inside Explore, choose a checkpoint to compare continuations, refine a region, or inspect saved readouts. New operations require compatible compute. To continue imported evidence on a direct worker, use **Continue this investigation on my machine**. Managed sessions do not automatically support every interactive inspection tool.

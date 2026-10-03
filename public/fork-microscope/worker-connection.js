@@ -70,7 +70,13 @@
     document.head.append(style);
     const bar=document.createElement('div');bar.className='worker-strip';
     status=document.createElement('span');button=document.createElement('button');button.type='button';
-    bar.append(status,button);document.body.prepend(bar);
+    bar.append(status,button);bar.hidden=true;document.body.prepend(bar);
+    document.addEventListener('click',event=>{const a=event.target.closest?.('a[href]');if(a&&new URL(a.href,location.href).pathname==='/hosted.html'&&location.pathname!=='/hosted.html')try{sessionStorage.setItem('fork-compute-return',location.pathname+location.search+location.hash);}catch{}});
+    const control=document.querySelector('.app-nav a[href="/hosted.html"]');
+    function computeStatus(label){if(control){control.textContent='Compute · '+label;control.setAttribute('aria-label','Compute · '+label);}}
+    computeStatus('manage');
+    window.addEventListener('fork-managed-status',e=>{if(e.detail?.label)computeStatus(e.detail.label);});
+    window.addEventListener('fork-worker-status',e=>{if(e.detail?.model)computeStatus(e.detail.job?.status==='running'?'machine running':'machine ready');});
     const dialog=document.createElement('dialog');dialog.className='worker-dialog';dialog.setAttribute('aria-labelledby','worker-title');
     dialog.innerHTML=`<h2 id="worker-title">Connect a machine</h2>
       <p class="worker-lead">Your machine stores the evidence and runs the model. Connecting does not load a model or start paid compute.</p>
@@ -121,7 +127,8 @@
       }catch(error){pairNote.textContent=error.message==='Failed to fetch'?'Cannot reach the machine. Check that it is online; for phone access use --share. If its tunnel restarted, generate a new pairing code.':error.message;}
       finally{submit.disabled=false;checkStatus();}
     };
-    window.openComputeConnection=()=>button.click();
+    window.openComputeConnection=()=>{try{sessionStorage.setItem("fork-compute-return",location.pathname+location.search+location.hash);}catch{}location.href="/hosted.html";};
+    window.openWorkerPairing=()=>button.click();
     button.onclick=()=>{try{dialog.querySelector('[data-remember]').checked=!!localStorage.getItem(rememberedKey);}catch{}form.elements.url.value=config?.url || (local?location.origin:'http://127.0.0.1:8767');form.elements.token.value=config?.token || '';note.textContent='';pairNote.textContent='';dialog.showModal();};
     dialog.querySelector('[data-close]').onclick=()=>dialog.close();
     dialog.querySelector('[data-disconnect]').onclick=()=>{persist(null);dialog.close();};

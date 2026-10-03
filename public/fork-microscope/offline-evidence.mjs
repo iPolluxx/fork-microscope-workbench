@@ -29,6 +29,8 @@ export async function clearHostedEvidence(ownerUid){
   const name=evidenceDatabaseName(ownerUid);
   globalThis.localStorage?.removeItem('fork-hosted-delivery-index:'+ownerUid);
   if(hostedOwner===ownerUid){hostedOwner='';bundles=[];active=false;globalThis.localStorage?.removeItem(HOSTED_OWNER_KEY);globalThis.localStorage?.removeItem('fork-evidence-source');}
+  // Hide the previous account immediately, even if another tab blocks disk cleanup.
+  globalThis.dispatchEvent?.(new Event('offline-evidence-change'));
   if(typeof indexedDB!=='undefined')await new Promise((resolve,reject)=>{const request=indexedDB.deleteDatabase(name);request.onsuccess=resolve;request.onerror=()=>reject(Error('Could not clear hosted evidence cache.'));request.onblocked=()=>reject(Error('Close other evidence tabs to finish clearing this account’s cache.'));});
   globalThis.dispatchEvent?.(new Event('offline-evidence-change'));
 }
@@ -291,4 +293,9 @@ export async function initOfflineEvidence(){
     window.workerFetch=evidenceFetch;
   })();
   return initializing;
+}
+
+// Enumerate only the currently selected browser/account namespace; no source switching.
+export async function listBrowserInvestigations(){
+ const stored=await savedBundles();return stored.map(bundle=>{const i=recordFor(bundle);return {id:i.id,name:i.context?.name,question:i.context?.question||i.config?.base?.prompt,status:i.status||'saved',run_id:bundle.manifest.entry_run_id,runs:bundle.manifest.run_ids.length};});
 }
