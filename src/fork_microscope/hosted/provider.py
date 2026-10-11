@@ -5,9 +5,12 @@ Contract checked against https://api.runpod.io/v2/openapi.json 2026-10-01.
 import copy
 import json
 import math
-import urllib.error
 import urllib.parse
-import urllib.request
+
+from .credentials import Secret, UrllibTransport
+
+
+_HTTP = UrllibTransport({"api.runpod.io"}, max_response_bytes=4 * 1024 * 1024)
 
 
 class ProviderError(RuntimeError):
@@ -21,31 +24,28 @@ class CreateUncertain(ProviderError):
 
 
 def http_transport(method, url, headers, body):
-    request = urllib.request.Request(url, data=None if body is None else json.dumps(body).encode(),
-                                     headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            data = response.read(4 * 1024 * 1024 + 1)
-            if len(data) > 4 * 1024 * 1024:
-                raise ProviderError()
-            return response.status, json.loads(data) if data else None
-    except urllib.error.HTTPError as error:
-        # Deliberately do not echo server detail, request bodies, or credentials.
-        return error.code, None
+    """One bounded HTTPS request; credentials are never forwarded through redirects."""
+    response = _HTTP.request(method, url, headers,
+        None if body is None else json.dumps(body).encode(), timeout=30)
+    # Ignore error/redirect payloads, which may contain reflected request secrets.
+    return response.status, response.json() if 200 <= response.status < 300 else None
 
 
 class RunPod:
     def __init__(self, api_key, transport=http_transport):
-        if not api_key:
+        if not isinstance(api_key, str) or not api_key:
             raise ValueError("RunPod credential required")
-        self._key = api_key
+        self._key = Secret(api_key)
         self.transport = transport
+
+    def _headers(self):
+        return {"Authorization": "Bearer " + self._key.reveal(), "Content-Type": "application/json",
+                "User-Agent": "ForkMicroscope/0.1 (+https://github.com/iPolluxx/fork-microscope-workbench)"}
 
     def _request(self, method, path, body=None):
         try:
             status, result = self.transport(method, "https://api.runpod.io/v2" + path,
-                {"Authorization": "Bearer " + self._key, "Content-Type": "application/json",
-                 "User-Agent": "ForkMicroscope/0.1 (+https://github.com/iPolluxx/fork-microscope-workbench)"}, body)
+                self._headers(), body)
         except Exception:
             raise (CreateUncertain() if method == "POST" else ProviderError()) from None
         if type(status) is not int:
@@ -109,6 +109,32 @@ class RunPod:
 
     def delete_pod(self, pod_id):
         self._request("DELETE", "/pods/" + urllib.parse.quote(pod_id, safe=""))
+
+    def legacy_balance(self):
+        """Optional read-only legacy API; GraphQL is due to retire in early 2027.
+
+        REST v2 billing history is spending, not prepaid balance. Do not substitute it.
+        Authorization is sent only in a header, never a query string. A failed read
+        is deliberately independent of pod readiness and never represents a payment.
+        """
+        try:
+            status, result = self.transport("POST", "https://api.runpod.io/graphql",
+                self._headers(), {"query": "query { myself { clientBalance currentSpendPerHr } }"})
+        except Exception:
+            raise ProviderError() from None
+        if type(status) is not int or not 200 <= status < 300:
+            raise ProviderError(status if type(status) is int else None)
+        if not isinstance(result, dict) or result.get("errors"):
+            raise ProviderError()
+        account = result.get("data", {}).get("myself") if isinstance(result.get("data"), dict) else None
+        if not isinstance(account, dict):
+            raise ProviderError()
+        balance, spend = account.get("clientBalance"), account.get("currentSpendPerHr")
+        if (type(balance) not in (int, float) or not math.isfinite(balance)
+            or type(spend) not in (int, float) or not math.isfinite(spend) or spend < 0):
+            raise ProviderError()
+        # Balance can be zero or negative; preserve the provider's observed value.
+        return {"amount_usd": balance, "spend_per_hour_usd": spend}
 
 
 class FakeRunPod:

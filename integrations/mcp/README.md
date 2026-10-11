@@ -1,19 +1,22 @@
-# Private MCP integration
+# Fork Microscope MCP integration
 
-Connect an MCP-capable agent to your own exported investigations and compute worker.
+Read saved investigations, open the interactive evidence viewer, and operate explicitly approved bounded workflows through an MCP-capable client.
 
-Start with [USAGE.md](USAGE.md) for installation, private profiles, all nine tools, and execution limits. See [PROVENANCE.md](PROVENANCE.md) for pinned dependencies and conversion attribution.
+- [Private local server](USAGE.md): one profile, stdio, optional Secure MCP Tunnel and an existing worker.
+- [Managed pilot](HOSTED-BYOK.md): authenticated account, immutable plan, independent RunPod controller and private evidence library.
+- [Viewer validation](VIEWER-VALIDATION.md): graph, token context, contrasting saved text and original-byte verification.
+- [Portable plugin](../chatgpt-plugin/README.md): manifest, setup/investigation skills and private launcher/package helper.
 
-This is an optional separately installed integration. Installing the main workbench does not install MCP. No model weights, private investigations, credentials, or extracted paper figures are distributed here.
+The [showcase](../../docs/chatgpt/README.md) includes actual deployed saved-evidence screenshots and a reproducible public example. Viewing saved results makes no model calls. New paid runs need fresh provider readiness and exact-plan approval.
 
-The standalone runtime intentionally pins the previously validated workbench revision. Updating that pin requires compatibility testing. Paper2Agent was used to create this integration; it is not a runtime dependency.
+FastMCP is a separate runtime requirement; installing the workbench alone does not install this adapter. No credentials, profiles, private investigations or model weights are distributed. [Dependencies](PROVENANCE.md).
 
-## Tests
-
-With the integration environment installed, install pytest into that environment and run:
+From repository root, with the pinned runtime and scientific dependencies installed:
 
 ```bash
-.venv/bin/python -m pytest tests -q
+PYTHONPATH=src:integrations/mcp/src python -m pytest \
+  integrations/mcp/tests integrations/chatgpt-plugin/tests -q
+node --test integrations/mcp/tests/test_*.mjs tests/test_compute_ui.mjs
 ```
 
-Tests use temporary empty profiles and an in-process MCP client. No paid compute or pretrained model execution occurs. Earlier lifecycle/round-trip validation is described in USAGE.md; those full conversion fixtures are not shipped here.
+Real protocol tests use FastMCP and subprocess stdio; offline doubles are tests-only. Report missing-runtime/optional-fixture skips separately. [Validation scope](../../docs/chatgpt/VALIDATION.md).

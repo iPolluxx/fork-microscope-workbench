@@ -64,17 +64,38 @@ class EvidenceDelivery:
                 return dict(old)
             path = self.root / (artifact_id + '.json')
             tmp = path.with_suffix('.tmp')
-            tmp.write_bytes(data)
+            # Owner-only and synced before the capability manifest names it; a
+            # crash must not leave a recorded artifact whose bytes were never durable.
+            fd = os.open(tmp, os.O_WRONLY|os.O_CREAT|os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'wb') as f:
+                os.fchmod(f.fileno(), 0o600)
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
             tmp.replace(path)
+            self._sync_directory()
             record = dict(id=artifact_id, sha256=digest, size_bytes=len(data),
                           download_token=secrets.token_urlsafe(32), expires_at=self.deadline)
-            self.records[artifact_id] = record
+            records = {**self.records, artifact_id: record}
             manifest = self.root / 'capabilities.json'
             fd = os.open(manifest.with_suffix('.tmp'), os.O_WRONLY|os.O_CREAT|os.O_TRUNC, 0o600)
             with os.fdopen(fd, 'w') as f:
-                json.dump(self.records, f, allow_nan=False)
+                json.dump(records, f, allow_nan=False)
+                f.flush()
+                os.fsync(f.fileno())
             manifest.with_suffix('.tmp').replace(manifest)
+            self._sync_directory()
+            # Publish in-memory idempotency only after persistence succeeds. A
+            # failed manifest write must not make the retry appear acknowledged.
+            self.records = records
             return dict(record)
+
+    def _sync_directory(self):
+        fd = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
 
     def authorized(self, artifact_id, authorization, origin):
         with self.lock:
@@ -126,15 +147,19 @@ class EvidenceDelivery:
         return ThreadingHTTPServer((host, port), Handler)
 
 
-def upload_drive(path, session_url, *, opener=urlopen, clock=time.time, deadline=float('inf')):
+def upload_drive(path, session_url, *, opener=urlopen, clock=time.time, deadline=float('inf'), resume=False):
     """Upload/resume a bounded file to a Google-issued per-file session.
 
 Only Google's upload endpoint is accepted. 308 is handled as progress, not as a
 redirect to another host. Do not put this session URL in a public job record.
+Use resume=True after saving a grant, including after process restart, to query
+the existing session before sending bytes that may already have been committed.
 """
     from urllib.error import HTTPError, URLError
     from urllib.request import HTTPRedirectHandler, build_opener
     parsed = urlsplit(session_url)
+    if type(resume) is not bool:
+        raise ValueError('Invalid upload resume option.')
     if parsed.scheme != 'https' or parsed.netloc != 'www.googleapis.com' or not parsed.path.startswith('/upload/drive/v3/files'):
         raise ValueError('Invalid Drive upload session.')
     if opener is urlopen:
@@ -146,7 +171,7 @@ redirect to another host. Do not put this session URL in a public job record.
     size = path.stat().st_size
     if not 0 < size <= MAX_BYTES:
         raise ValueError('Invalid bundle size.')
-    offset, failures, query_status = 0, 0, False
+    offset, failures, query_status = 0, 0, resume
     while clock() < deadline:
         if query_status:
             body = b''

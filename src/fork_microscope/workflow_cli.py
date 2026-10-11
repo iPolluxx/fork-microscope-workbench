@@ -6,6 +6,26 @@ import urllib.request
 import urllib.error
 import urllib.parse
 
+MAX_RESPONSE_BYTES = 64 * 1024 * 1024
+MAX_ERROR_BYTES = 16 * 1024
+
+
+def bounded_json(response, limit):
+    """Bound reads even when Content-Length is absent or dishonest."""
+    raw = response.read(limit + 1)
+    if len(raw) > limit:
+        raise ValueError('Worker response exceeds the permitted size.')
+    def reject_constant(value):
+        raise ValueError('Nonfinite JSON number.')
+    try:
+        value = json.loads(raw, parse_constant=reject_constant)
+    except (ValueError, UnicodeError, RecursionError):
+        raise ValueError('Worker returned invalid JSON.') from None
+    if not isinstance(value, dict):
+        raise ValueError('Worker response must be a JSON object.')
+    return value
+
+
 class Client:
     def __init__(self,url,token=None):
         parts=urllib.parse.urlsplit(url)
@@ -21,11 +41,14 @@ class Client:
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self,*args,**kwargs):return None
         try:
-            with urllib.request.build_opener(NoRedirect).open(req,timeout=60) as response:return json.load(response)
+            with urllib.request.build_opener(NoRedirect).open(req,timeout=60) as response:return bounded_json(response,MAX_RESPONSE_BYTES)
         except urllib.error.HTTPError as exc:
-            try:message=json.load(exc).get('error','Worker request failed.')
-            except (ValueError,AttributeError):message='Worker request failed.'
-            raise ValueError(message) from None
+            try:message=bounded_json(exc,MAX_ERROR_BYTES).get('error','Worker request failed.')
+            except ValueError:message='Worker request failed.'
+            finally:exc.close()
+            if not isinstance(message,str):message='Worker request failed.'
+            if self.token:message=message.replace(self.token,'[redacted]')
+            raise ValueError(message[:2000]) from None
     def export(self,path,destination):
         from fork_microscope.investigation_bundle import validate_bundle, canonical
         bundle=self.request(path);validate_bundle(bundle)

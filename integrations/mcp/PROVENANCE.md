@@ -1,15 +1,11 @@
 # Source and dependencies
 
-The tools call `fork_microscope.investigation_bundle.validate_bundle` from Fork Microscope Workbench, commit `5c0231c3d64bb8f167e41fea776e4ff2e578d048`:
-https://github.com/iPolluxx/fork-microscope-workbench
+The adapter uses this checkout's native bundle validator, evidence identities, configuration validator and existing-worker client. Install the editable checkout from `integrations/mcp` as documented in [USAGE](USAGE.md); an older external pin can omit current safety behavior.
 
-Its lazy validation imports also require `forking-paths` from Goodfire's Forking Fast repository at commit `d32fed8d4162a4888291c4b3a38b059727c85a41`:
-https://github.com/ericb-goodfire/forking-fast
+Real protocol checks used FastMCP 4.0.3, fastmcp-slim 4.0.3 and MCP 2.2.0. [protocol-runtime-lock.txt](protocol-runtime-lock.txt) records the isolated MCP runtime. Existing scientific dependencies were reused read-only; this is not a fresh-machine installation test. `src/requirements.txt` retains the historical complete requirement snapshot.
 
-Both are installed as pinned external dependencies. This archive does not redistribute their source or reference datasets. Consult each upstream repository for its license and terms; this wrapper does not grant additional rights to upstream work.
+Forking Paths remains an external reference at `d32fed8d4162a4888291c4b3a38b059727c85a41` from [Goodfire's Forking Fast implementation](https://github.com/ericb-goodfire/forking-fast). No upstream source or reference datasets are copied into the plugin or lightweight API build context. Saved-evidence validation avoids eagerly loading model execution code. Worker dependency and license requirements still apply. [Third-party provenance](../../THIRD-PARTY.md).
 
-New wrapper code performs file confinement, source validation, pagination, and exact-byte export. It does not implement or alter Goodfire reconstruction, sampling, or lens calculations.
+Conversion used Paper2Agent/Paper2MCP at commit `c5ce59cc726eddebd6623cc70ad2a80ae55c224e`. Paper2Agent is not a runtime dependency. Fork Microscope's own source uses the repository MIT license; that grant does not relicense upstream code/data or model weights.
 
-Conversion used the Paper2Agent/Paper2MCP workflow at commit `c5ce59cc726eddebd6623cc70ad2a80ae55c224e`, with separate source execution, implementation, and verification stages. Paper2Agent is not a runtime dependency.
-
-Workflow tools additionally call the pinned `workflow_cli.Client`, `settings_reference` and `investigation_workflow.validate_config`. Execution remains on the configured worker; wrappers add private profile ownership, explicit resource ceilings and retry handling. No scientific algorithm is reimplemented.
+Wrappers add confinement, ownership, bounded reads, pagination, retries and byte-integrity checks. They do not reimplement Goodfire reconstruction or claim a new scientific algorithm. [Validation](../../docs/chatgpt/VALIDATION.md).

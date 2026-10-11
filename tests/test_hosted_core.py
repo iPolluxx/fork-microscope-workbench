@@ -19,7 +19,7 @@ class Catalog:
 @pytest.fixture
 def setup():
     now=[1000.]
-    service=HostedService(MemoryStore(),clock=lambda:now[0],vault=Vault(),catalog=Catalog())
+    service=HostedService(MemoryStore(),clock=lambda:now[0],vault=Vault(),catalog=Catalog(),credential_validator=lambda uid,key:{'valid':True,'status':'ready'})
     client=TestClient(create_app(service,Auth(),worker_enabled=True))
     return service,client,now
 

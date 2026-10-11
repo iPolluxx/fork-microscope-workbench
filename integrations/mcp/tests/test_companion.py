@@ -9,8 +9,6 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from tools.profile import load_profile
-from fastmcp import Client
-from fork_microscope_workbench_mcp import mcp
 
 @pytest.fixture
 def profile(tmp_path, monkeypatch):
@@ -44,15 +42,18 @@ def test_refuse_escaping_storage(profile, tmp_path):
     with pytest.raises(ValueError, match="direct children"):
         load_profile()
 
-def test_nine_tools_and_offline_discovery(profile):
+def test_real_mcp_tool_discovery(profile):
+    Client = pytest.importorskip("fastmcp", reason="Real MCP runtime unavailable; adapter tests are separate").Client
+    from fork_microscope_workbench_mcp import mcp
     async def check():
-        async with Client(mcp) as client:
+        async with Client(mcp, timeout=15, init_timeout=15) as client:
             names = {t.name for t in await client.list_tools()}
             assert names == {"fork_microscope_" + name for name in (
                 "list_investigations", "inspect_investigation", "export_investigation",
+                "report_investigation", "read_investigation_bytes",
                 "workflow_settings", "start_workflow", "workflow_status",
-                "cancel_workflow", "resume_workflow", "export_workflow")}
+                "cancel_workflow", "resume_workflow", "export_workflow", "render_investigation", "get_investigation_view")}
             for name in ("list_investigations", "workflow_settings"):
                 result = await client.call_tool("fork_microscope_" + name, {})
                 assert not result.is_error
-    asyncio.run(check())
+    asyncio.run(asyncio.wait_for(check(), timeout=30))

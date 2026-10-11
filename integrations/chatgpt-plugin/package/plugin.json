@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "fork-microscope",
+  "version": "0.1.0",
+  "description": "Inspect saved Fork Microscope investigations and operate bounded workflows on your own connected compute.",
+  "repository": "https://github.com/iPolluxx/fork-microscope-workbench",
+  "license": "MIT",
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/setup/SKILL.md",
+      "interface": {
+        "displayName": "Fork Microscope",
+        "shortDescription": "Explore model continuations and saved evidence",
+        "longDescription": "Read private saved investigations, compare outcome counts and continuations, and export portable evidence. New experiments require your configured model worker and execution authorization.",
+        "defaultPrompt": [
+          "Show my saved Fork Microscope investigations.",
+          "Explain the contrasting continuations in this investigation.",
+          "Help me configure a bounded investigation on my connected compute."
+        ]
+      }
+    }
+  }
+}

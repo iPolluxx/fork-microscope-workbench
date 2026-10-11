@@ -8,22 +8,39 @@ import shutil
 import tempfile
 from typing import Annotated
 
-from fastmcp import FastMCP
+from .runtime import FastMCP
 from fork_microscope.workflow_cli import Client,settings_reference
 from fork_microscope.investigation_workflow import validate_config
 from fork_microscope.investigation_bundle import digest,identifier
 from .profile import load_profile,private,write_private
 
-REFERENCE='https://github.com/iPolluxx/fork-microscope-workbench/blob/5c0231c3d64bb8f167e41fea776e4ff2e578d048/src/fork_microscope/workflow_cli.py'
+REFERENCE='https://github.com/iPolluxx/fork-microscope-workbench/blob/f02be7e87221932ebb50ca28fb95060721e5d69e/src/fork_microscope/workflow_cli.py'
 workflow_mcp=FastMCP(name='workflow')
 
 def result(message,**data):return dict(message=message,reference=REFERENCE,artifacts=[],**data)
 
 def redact(value,token):
-    if isinstance(value,str):return value.replace(token,'[redacted]') if token else value
-    if isinstance(value,list):return [redact(x,token) for x in value]
-    if isinstance(value,dict):return {k:redact(v,token) for k,v in value.items()}
-    return value
+    # Shared traversal budget bounds nested worker values as well as strings.
+    remaining=[500]
+    def visit(item,depth=0):
+        remaining[0]-=1
+        if remaining[0]<0 or depth>8:return '[truncated]'
+        if isinstance(item,str):return (item.replace(token,'[redacted]') if token else item)[:2000]
+        if isinstance(item,list):
+            out=[]
+            for child in item[:100]:
+                if remaining[0]<=0:break
+                out.append(visit(child,depth+1))
+            return out
+        if isinstance(item,dict):
+            out={}
+            for key,child in item.items():
+                if remaining[0]<=0 or len(out)>=100:break
+                key=(str(key).replace(token,'[redacted]') if token else str(key))[:200]
+                out[key]=visit(child,depth+1)
+            return out
+        return item
+    return visit(value)
 
 def worker(p):
     if not p['worker_url'] or not p['worker_token_file']:raise ValueError('No worker configured for this private profile. Use configure.py worker.')
@@ -51,7 +68,10 @@ def owned(d,p,id):
     return record
 
 def call(client,token,path,payload=None):
-    try:return client.request(path,payload)
+    try:
+        value=client.request(path,payload)
+        if not isinstance(value,dict):raise ValueError('Worker response must be a JSON object.')
+        return value
     except ValueError as exc:raise ValueError(redact(str(exc),token)) from None
     except Exception:raise ValueError('Worker request failed. Check the configured connection; retry with the same request ID after an uncertain start.') from None
 
@@ -60,8 +80,8 @@ def compact(value,token):
     data={k:value[k] for k in fields if k in value}
     for k,v in list(data.items()):
         if isinstance(v,list):data[k]=v[:100];data[k+'_total']=len(v)
-        elif isinstance(v,str):data[k]=v[:2000]
-    if isinstance(value.get('worker_job'),dict):data['worker_job']={k:value['worker_job'][k] for k in ('id','status','phase','progress') if k in value['worker_job'] and isinstance(value['worker_job'][k],(str,int,float,bool,type(None)))}
+    if isinstance(value.get('worker_job'),dict):data['worker_job']={k:value['worker_job'][k] for k in ('id','status','phase','progress','completed','total','progress_unit') if k in value['worker_job'] and isinstance(value['worker_job'][k],(str,int,float,bool,type(None)))}
+    data['summary_scope']='Selected fields only; nested values, strings and lists are bounded and may omit content. Export saved evidence for the complete record.'
     return redact(data,token)
 
 def capped(config,p):
@@ -69,7 +89,7 @@ def capped(config,p):
     if any(c['limits'][k]>v for k,v in p['limits'].items()):raise ValueError('Requested resource limits exceed this profile’s configured ceilings.')
     return c
 
-@workflow_mcp.tool(annotations={'readOnlyHint':True})
+@workflow_mcp.tool(meta={"ui": {"visibility": ["model"]}}, annotations={'readOnlyHint':True})
 def fork_microscope_workflow_settings(config: Annotated[dict | None,'Optional complete source workflow configuration to validate offline.']=None)->dict:
     """Explain supported automatic workflow settings and optionally validate a configuration.
     Optional config → source settings, private profile ceilings and owned workflow identifiers; no network.
@@ -80,7 +100,7 @@ def fork_microscope_workflow_settings(config: Annotated[dict | None,'Optional co
     if config is not None:data['validated_config']=capped(config,p)
     return data
 
-@workflow_mcp.tool(annotations={'readOnlyHint':False,'destructiveHint':False,'idempotentHint':True})
+@workflow_mcp.tool(meta={"ui": {"visibility": ["model"]}}, annotations={'readOnlyHint':False,'destructiveHint':False,'idempotentHint':True})
 def fork_microscope_start_workflow(config: Annotated[dict,'Complete source workflow config including explicit time, sample and generated-token limits.'],request_id: Annotated[str,'Stable client request ID; reuse unchanged on retries, choose a new ID for a new experiment.'],confirm_execution: Annotated[bool,'True only after the user authorizes execution on their configured compute.']=False)->dict:
     """Start bounded scan, adaptive refinement and optional J-lens on configured compute.
     Config and stable request ID → private owned job; confirmation permits potentially billable execution.
@@ -94,12 +114,17 @@ def fork_microscope_start_workflow(config: Annotated[dict,'Complete source workf
         if record and record['config_hash']!=digest(c):raise ValueError('Request ID already belongs to different settings.')
         if not record:
             d['jobs'][id]={'worker_url':p['worker_url'],'request_key':key,'config_hash':digest(c),'limits':c['limits'],'status':'pending'};write_private(path,d)
-        value=call(client,token,'workflow-start',{'request_id':key,'config':c})
-        if value.get('id')!=id:raise ValueError('Worker returned an unexpected workflow identity.')
-        d['jobs'][id]['status']=value.get('status');write_private(path,d)
+    # Persist ownership before I/O: a timeout may mean the worker started.
+    # Releasing this lock allows cancellation during a slow start/status/export.
+    value=call(client,token,'workflow-start',{'request_id':key,'config':c})
+    if value.get('id')!=id:raise ValueError('Worker returned an unexpected workflow identity.')
+    with ledger(p) as (d,path):
+        record=owned(d,p,id)
+        if not record.get('cancellation_requested'):record['status']=value.get('status')
+        write_private(path,d)
     return result('Workflow submitted. Time stopping is cooperative, not a provider billing cap.',workflow=compact(value,token))
 
-@workflow_mcp.tool(annotations={'readOnlyHint':True})
+@workflow_mcp.tool(meta={"ui": {"visibility": ["model"]}}, annotations={'readOnlyHint':True})
 def fork_microscope_workflow_status(workflow_id: Annotated[str,'Workflow ID owned by this configured profile.'])->dict:
     """Read progress of a workflow created by this private profile.
     Owned workflow ID → bounded saved status and artifact identifiers.
@@ -111,19 +136,25 @@ def operation(id,action):
     with ledger(p) as (d,path):
         record=owned(d,p,id)
         if action=='resume' and any(record.get('limits',{}).get(k,10**9)>v for k,v in p['limits'].items()):raise ValueError('Saved workflow limits exceed current profile ceilings; resume is blocked.')
-        client,token=worker(p)
-        value=call(client,token,'workflow?id='+id) if action=='status' else call(client,token,'workflow-'+action,{'id':id})
-        if value.get('id')!=id:raise ValueError('Worker returned an unexpected workflow identity.')
+    client,token=worker(p)
+    value=call(client,token,'workflow?id='+id) if action=='status' else call(client,token,'workflow-'+action,{'id':id})
+    if value.get('id')!=id:raise ValueError('Worker returned an unexpected workflow identity.')
+    if action=='cancel':
+        with ledger(p) as (d,path):
+            record=owned(d,p,id)
+            record['cancellation_requested']=bool(value.get('cancellation_requested',False))
+            record['status']=value.get('status')
+            write_private(path,d)
     return result('Saved workflow state; cancellation and time limits are cooperative.',workflow=compact(value,token))
 
-@workflow_mcp.tool(annotations={'readOnlyHint':False,'idempotentHint':True})
+@workflow_mcp.tool(meta={"ui": {"visibility": ["model"]}}, annotations={'readOnlyHint':False,'idempotentHint':True})
 def fork_microscope_cancel_workflow(workflow_id: Annotated[str,'Workflow ID owned by this configured profile.'])->dict:
     """Request cooperative cancellation of an owned workflow.
     Owned workflow ID → source cancellation state; in-flight work may finish before stopping.
     """
     return operation(workflow_id,'cancel')
 
-@workflow_mcp.tool(annotations={'readOnlyHint':False,'idempotentHint':False})
+@workflow_mcp.tool(meta={"ui": {"visibility": ["model"]}}, annotations={'readOnlyHint':False,'idempotentHint':False})
 def fork_microscope_resume_workflow(workflow_id: Annotated[str,'Owned interrupted or failed workflow eligible for source recovery.'],confirm_execution: Annotated[bool,'True only with authorization to resume potentially billable compute.']=False)->dict:
     """Resume eligible interrupted or failed work using the source recovery implementation.
     Owned workflow ID and execution confirmation → resumed state or source eligibility error.
@@ -131,28 +162,29 @@ def fork_microscope_resume_workflow(workflow_id: Annotated[str,'Owned interrupte
     if not confirm_execution:raise ValueError('Set confirm_execution=true only with user authorization to resume compute.')
     return operation(workflow_id,'resume')
 
-@workflow_mcp.tool(annotations={'readOnlyHint':False,'destructiveHint':False})
+@workflow_mcp.tool(meta={"ui": {"visibility": ["model"]}}, annotations={'readOnlyHint':False,'destructiveHint':False})
 def fork_microscope_export_workflow(workflow_id: Annotated[str,'Owned workflow with saved evidence to export.'])->dict:
     """Export a worker investigation into this profile’s private evidence library.
     Owned workflow ID → validated native bundle, saved bundle ID and portable artifact path.
     """
     p=load_profile()
     with ledger(p) as (d,path):
-        owned(d,p,workflow_id);client,token=worker(p)
-        folder=Path(tempfile.mkdtemp(prefix='workflow-',dir=p['export_dir']));artifact=folder/'investigation.json'
-        dest=None;installed=False
-        try:
-            meta=client.export('workflow-export?id='+workflow_id,artifact)
-            bundle=json.loads(artifact.read_text())
-            if bundle.get('payload',{}).get('investigation',{}).get('id')!=workflow_id:
-                raise ValueError('Worker export does not match the owned workflow identity.')
-            os.chmod(artifact,0o600)
-            name=folder.name+'.json';dest=p['evidence_dir']/name
-            fd=os.open(dest,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600);installed=True
-            with os.fdopen(fd,'wb') as f:f.write(artifact.read_bytes())
-        except Exception as exc:
-            if installed:dest.unlink(missing_ok=True)
-            shutil.rmtree(folder)
-            if isinstance(exc,ValueError):raise ValueError(redact(str(exc),token)) from None
-            raise ValueError('Worker export failed; inspect owned status and retry.') from None
-    return {'message':'Saved validated worker evidence privately; Explorer can import this bundle without compute.','reference':REFERENCE,'artifacts':[{'description':'Complete investigation bundle','path':str(artifact)}],'bundle_id':name,'run_ids':meta['run_ids'],'lens_ids':meta['lens_ids']}
+        owned(d,p,workflow_id)
+    client,token=worker(p)
+    folder=Path(tempfile.mkdtemp(prefix='workflow-',dir=p['export_dir']));artifact=folder/'investigation.json'
+    dest=None;installed=False
+    try:
+        meta=client.export('workflow-export?id='+workflow_id,artifact)
+        bundle=json.loads(artifact.read_text())
+        if bundle.get('payload',{}).get('investigation',{}).get('id')!=workflow_id:
+            raise ValueError('Worker export does not match the owned workflow identity.')
+        os.chmod(artifact,0o600)
+        name=folder.name+'.json';dest=p['evidence_dir']/name
+        fd=os.open(dest,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600);installed=True
+        with os.fdopen(fd,'wb') as f:f.write(artifact.read_bytes())
+    except Exception as exc:
+        if installed:dest.unlink(missing_ok=True)
+        shutil.rmtree(folder)
+        if isinstance(exc,ValueError):raise ValueError(redact(str(exc),token)) from None
+        raise ValueError('Worker export failed; inspect owned status and retry.') from None
+    return {'message':'Saved validated worker evidence privately; Explorer can import this bundle without compute.','reference':REFERENCE,'artifacts':[{'description':'Complete investigation bundle','path':str(artifact),'source_uri':artifact.as_uri(),'redacted':False}],'bundle_id':name,'run_ids':meta['run_ids'],'lens_ids':meta['lens_ids']}

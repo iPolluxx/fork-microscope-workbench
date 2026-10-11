@@ -1,14 +1,21 @@
 """Pinned model allowlist and short-lived, provider-backed compute estimates."""
 import math
+import re
 import uuid
 
 MODELS = ({"id": "Qwen/Qwen2.5-1.5B-Instruct", "revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306", "minimum_vram_gb": 16},)
 
 
+def immutable_worker_image(value):
+    if not isinstance(value,str) or not re.fullmatch(r"[^\s@]+@sha256:[0-9a-f]{64}",value):
+        raise ValueError("Immutable worker image digest required")
+    return value
+
+
 class Catalog:
     def __init__(self, provider_factory, *, disk_usd_per_gb_hour, disk_rate_source,
                  disk_gb=30, maximum_seconds=3600, quote_ttl_seconds=120,
-                 startup_allowance_seconds=300, export_reserve_seconds=120):
+                 startup_allowance_seconds=300, export_reserve_seconds=120, worker_image=None):
         if not disk_rate_source or not math.isfinite(disk_usd_per_gb_hour) or disk_usd_per_gb_hour < 0:
             raise ValueError("Explicit disk price and source required")
         self.provider_factory = provider_factory
@@ -19,6 +26,9 @@ class Catalog:
         self.ttl = quote_ttl_seconds
         self.startup = startup_allowance_seconds
         self.export = export_reserve_seconds
+        # None is available for explicitly legacy/fake catalogs. Production
+        # assembly supplies its configured immutable digest for every new quote.
+        self.worker_image = immutable_worker_image(worker_image) if worker_image is not None else None
 
     def models(self):
         return [dict(model) for model in MODELS]
@@ -53,6 +63,7 @@ class Catalog:
             if estimate > allowance:
                 raise ValueError("Estimate exceeds USD allowance")
         return {"id": uuid.uuid4().hex, "max_usd": allowance, "model_id": model["id"], "model_revision": model["revision"], "revision": model["revision"],
+            **({"worker_image":self.worker_image} if self.worker_image is not None else {}),
             "gpu_id": gpu["id"], "gpu_count": 1, "cloud": "SECURE", "gpu_usd_per_hour": rate,
             "disk_gb": self.disk_gb, "disk_usd_per_gb_hour": self.disk_rate,
             "disk_rate_source": self.disk_rate_source, "quoted_at": now, "expires_at": now + self.ttl,
