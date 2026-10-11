@@ -10,7 +10,13 @@ Validation distinguishes code/protocol checks, the actual deployed saved-evidenc
 - The deliberately public portfolio bundle passed the native validator; raw counts were independently extracted and match [the case study](ATTENDEE-CASE-STUDY.md). The small first-run configuration passed the coordinator validator.
 - The static dashboard built successfully. The lightweight pilot packaging tests verified its source allowlist and content-addressed viewer identity. No image was built or deployed for this publication.
 
-These checks used existing dependencies read-only with Python 3.13.13, FastMCP 4.0.3 and MCP 2.2.0. They do not establish a fresh-machine installation, a full-repository scientific test pass or GitHub CI success. The CI workflow includes the new adapter/package and viewer suites for future runs.
+These checks used existing dependencies read-only with Python 3.13.13, FastMCP 4.0.3 and MCP 2.2.0. They do not establish a fresh-machine installation. The CI workflow includes the new adapter/package and viewer suites.
+
+## CI regression verification — 2026-10-11
+
+The initial GitHub root test step failed during collection because its pytest source path omitted `integrations/mcp/src`. The repaired configuration includes that path. Full-suite follow-through also restores exact static routes for the existing product assets, includes the new import module in the static build, restores method attribution on the new page shells, and updates the navigation test to check the current question, library and advanced pages.
+
+After these corrections, the complete root suite passed **707 tests**, with five optional tests skipped; the separate MCP/plugin suite passed **129 tests**. Both complete JavaScript commands passed (19 root suite files and three MCP suite files). Pinned-upstream verification, the full released-data mathematical audit and the static dashboard build also passed. Local verification used a temporary Python environment referencing existing dependencies and the isolated checkout; GitHub installs the package through its regular CPU setup. Local JavaScript used Node 20.20.2; GitHub uses Node 22. GitHub status must be checked on the PR's current head independently of these local results.
 
 ## Actual deployed saved-evidence viewer
 

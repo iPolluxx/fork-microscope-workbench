@@ -106,7 +106,7 @@ def test_multibranch_collection_roundtrip(tmp_path,monkeypatch,custom_answers):
         assert all(b['observations'][0]['full_response_text'] for b in rec['branches'])
 
 
-def test_dashboard_module_is_served_and_root_opens_investigation_entry():
+def test_dashboard_assets_and_investigation_pages_are_served():
     import threading
     import urllib.request
     from http.server import ThreadingHTTPServer
@@ -119,8 +119,21 @@ def test_dashboard_module_is_served_and_root_opens_investigation_entry():
             assert response.status==200 and b'export function newPass' in response.read()
         with urllib.request.urlopen(url+'/') as response:
             html=response.read()
-            assert b'quick-investigation.mjs' in html and b'worker-connection.js' in html
+            assert b'product-workspace.mjs' in html and b'worker-connection.js' in html
+            assert b'data-product-view="question"' in html
+        with urllib.request.urlopen(url+'/workspace.html') as response:
+            html=response.read()
+            assert b'data-product-view="library"' in html and b'/live.html?new=1' in html
         with urllib.request.urlopen(url+'/live.html') as response:
+            html=response.read()
+            assert b'product-workspace.mjs' in html and b'id="hosted-mount"' in html
+            assert b'data-product-view="question"' in html
+        for asset in ('product-workspace.mjs', 'product-theme.css', 'workflow-layout.css',
+                      'hosted-fragment.html', 'execution-adapter.mjs', 'hosted-import-ui.mjs',
+                      'prompt-sets.html'):
+            with urllib.request.urlopen(url+'/'+asset) as response:
+                assert response.status==200 and response.read()
+        with urllib.request.urlopen(url+'/advanced.html') as response:
             html=response.read()
             assert b'id="add-pass"' in html and b'id="continuations"' in html
         request=urllib.request.Request(url+'/api/live/run',data=b'{}',headers={'Content-Type':'application/json','Origin':url})
