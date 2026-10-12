@@ -18,9 +18,11 @@ jobs:
         with:
           node-version: '22'
       - run: ./scripts/setup.sh cpu
-      - run: uv pip install --python .venv/bin/python -r requirements/hosted.txt cryptography
+      - run: uv pip install --python .venv/bin/python -r requirements/hosted.txt cryptography fastmcp==4.0.3
       - run: .venv/bin/python -m pytest -q
+      - run: PYTHONPATH=src:integrations/mcp/src .venv/bin/python -m pytest integrations/mcp/tests integrations/chatgpt-plugin/tests -q
       - run: node --test tests/test_*.mjs
+      - run: node --test integrations/mcp/tests/test_*.mjs
       - run: .venv/bin/fork-microscope verify-upstream
       - run: .venv/bin/python scripts/verify_math.py
       - run: python3 scripts/build_dashboard.py

@@ -1,0 +1,26 @@
+{
+  "capture_date": "2026-10-11",
+  "surface": "Actual deployed ChatGPT embedded viewer in external Chrome",
+  "scope": "Historical imported saved evidence, no new inference during capture",
+  "original_public_demo_sha256": "efd568b4c21ab4b37e2dde85299744f36e940a6b32770ef84e1600fe5308b61d",
+  "screenshots": [
+    {
+      "file": "01-saved-graph-and-token-context.png",
+      "caption": "Saved outcome shares across six checkpoints, selected interval t=16\u219232, token context and before/after outcome mix. At these historical checkpoints, CHOICE=A rises 65%\u219285%, CHOICE=B falls 30%\u21925%, and total variation distance is 25%; these are conditional sampled frequencies, not a causal decision boundary.",
+      "sha256": "73210992a936541128b1279237ed0129311e08b774981e90db666e18657fd69f",
+      "bytes": 237144
+    },
+    {
+      "file": "02-saved-contrasting-continuations.png",
+      "caption": "Actual saved CHOICE=A and CHOICE=B continuation texts at checkpoint t=16. Labels reflect text matching; the B example's explanation is inconsistent with its label, illustrating why the underlying text must be inspected.",
+      "sha256": "d58668fdba17352ac8bd80f897f877a8f8841b4d7e50b06f8b8cb4778ebcaf59",
+      "bytes": 177229
+    },
+    {
+      "file": "03-saved-evidence-traceability-and-export.png",
+      "caption": "Saved JSON Pointer traceability, retained/omitted next-token candidate mass, recorded uncertainty values, and the original-evidence export control. Capturing the control does not itself demonstrate a download.",
+      "sha256": "5539fe4445ffef4abe86862928a39caa654db38dca30f80ce486d8021bc71b8a",
+      "bytes": 230224
+    }
+  ]
+}

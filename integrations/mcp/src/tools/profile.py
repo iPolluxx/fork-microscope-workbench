@@ -4,6 +4,35 @@ import os
 from pathlib import Path
 import stat
 import tempfile
+from contextlib import contextmanager
+from contextvars import ContextVar
+
+# Only authenticated server code sets this override. Tool arguments never select
+# a profile; ContextVar prevents concurrent hosted users sharing process state.
+_profile_override = ContextVar('fork_microscope_private_profile', default=None)
+_evidence_provenance_override = ContextVar('fork_microscope_evidence_provenance', default=None)
+
+@contextmanager
+def scoped_evidence_provenance(bundle_id, file_sha256, provenance):
+    """Trusted server manifest projection, bound to exact bytes and reset per request."""
+    token = _evidence_provenance_override.set((bundle_id, file_sha256, dict(provenance)))
+    try:
+        yield
+    finally:
+        _evidence_provenance_override.reset(token)
+
+def evidence_provenance(bundle_id, file_sha256):
+    value = _evidence_provenance_override.get()
+    return dict(value[2]) if value and value[:2] == (bundle_id, file_sha256) else None
+
+@contextmanager
+def scoped_profile(path: Path):
+    """Use a server-selected private profile for this request, restoring on exit."""
+    token = _profile_override.set(str(path))
+    try:
+        yield load_profile()
+    finally:
+        _profile_override.reset(token)
 
 DEFAULT_LIMITS = {'max_seconds':3600,'max_samples':10000,'max_generated_tokens':10000000}
 
@@ -23,7 +52,8 @@ def write_private(path: Path, value):
         if os.path.exists(name):os.unlink(name)
 
 def load_profile():
-    raw=os.environ.get('FORK_MICROSCOPE_PROFILE','')
+    raw=_profile_override.get()
+    if raw is None: raw=os.environ.get('FORK_MICROSCOPE_PROFILE','')
     path=Path(raw)
     if not raw or not path.is_absolute():raise ValueError('Set FORK_MICROSCOPE_PROFILE to an absolute private profile JSON path.')
     private(path);root=path.parent

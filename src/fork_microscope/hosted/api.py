@@ -38,6 +38,8 @@ def create_app(service, authenticator, *, worker_enabled=False, controller_enabl
             return await run_in_threadpool(service.public,uid,operation,await body(request) if mutation and request.method not in {'DELETE'} else {},request.path_params.get('resource_id'),request.headers.get('idempotency-key'))
         return handle
     base='/api/hosted/v1'
+    for path,method,operation,mutation in [('/account','GET','account_status',False),('/plans','POST','prepare_plan',True),('/plans','GET','plans',False),('/plans/{resource_id}','GET','plan',False),('/plans/{resource_id}/approve','POST','approve_plan',True)]:
+        app.add_api_route(base+path,endpoint(operation,mutation),methods=[method])
     for path,method,operation,mutation in [('/me','GET','me',False),('/models','GET','models',False),('/connections/runpod','PUT','runpod_put',True),('/connections/runpod','DELETE','runpod_delete',True),('/connections/drive','GET','drive',False),('/quotes','POST','quote',True),('/sessions','POST','start',True),('/sessions','GET','sessions',False),('/sessions/{resource_id}','GET','session',False),('/sessions/{resource_id}/terminate','POST','terminate',True),('/jobs','POST','job',True),('/jobs','GET','jobs',False),('/jobs/{resource_id}','GET','get_job',False),('/jobs/{resource_id}/cancel','POST','cancel',True),('/artifacts','GET','artifacts',False),('/artifacts/{resource_id}/download','GET','download',False),('/artifacts/{resource_id}/received','POST','received',True)]:
         app.add_api_route(base+path,endpoint(operation,mutation),methods=[method])
     if worker_enabled:

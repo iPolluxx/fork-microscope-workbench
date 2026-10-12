@@ -15,7 +15,11 @@ Opening an investigation does not publish it. Evidence read through MCP is passe
 | Tool | Purpose |
 | --- | --- |
 | `fork_microscope_list_investigations` | List this profile's locally exported bundles. |
+| `fork_microscope_render_investigation` | Open the compact/expanded MCP Apps viewer for one hash-pinned saved bundle. |
+| `fork_microscope_get_investigation_view` | Read a bounded checkpoint/continuation page without remounting the viewer. |
 | `fork_microscope_inspect_investigation` | Navigate saved settings, graphs, continuations, token IDs and lens artifacts. |
+| `fork_microscope_report_investigation` | Produce a bounded evidence-grounded report with provenance and limitations. |
+| `fork_microscope_read_investigation_bytes` | Read hash-pinned source bytes in bounded base64 chunks. |
 | `fork_microscope_export_investigation` | Copy one local bundle unchanged to a new private export. |
 | `fork_microscope_workflow_settings` | Explain every supported workflow setting and validate a supplied configuration without starting compute. |
 | `fork_microscope_start_workflow` | Submit a bounded investigation to the configured worker with a stable retry ID. |
@@ -28,7 +32,7 @@ The existing coordinator generates the original response, scans it, performs the
 
 ## Install and connect your agent
 
-From a repository clone, enter `integrations/mcp/` and run:
+Installation is a separate approval step when new dependencies are not authorized. No install is needed for offline discovery using an existing workbench Python. From the reviewed repository clone, enter `integrations/mcp/`. After dependency installation is authorized:
 
 ```bash
 uv venv --python 3.13.13 .venv
@@ -48,6 +52,7 @@ Configure your MCP client to launch the following command, replacing paths with 
       "command": "/absolute/package/.venv/bin/python",
       "args": ["/absolute/package/src/fork_microscope_workbench_mcp.py"],
       "env": {
+        "PYTHONPATH": "/absolute/workbench/src",
         "FORK_MICROSCOPE_PROFILE": "/absolute/private/profile.json"
       }
     }
@@ -65,6 +70,7 @@ startup_timeout_sec = 30
 tool_timeout_sec = 120
 
 [mcp_servers.fork_microscope.env]
+PYTHONPATH = "/absolute/workbench/src"
 FORK_MICROSCOPE_PROFILE = "/absolute/private/profile.json"
 ```
 
@@ -81,7 +87,7 @@ Obtain your worker's HTTPS origin and its access token using the Fork Microscope
   --token-file /absolute/private/worker-token
 ```
 
-The setup copies the token into the profile and checks URL syntax, but makes no network request. HTTPS is required except for loopback HTTP workers. This package does not deploy a VM, load a model by itself, renew a tunnel, or stop a pod. Use a worker compatible with the pinned Fork Microscope workflow API. The workflow configuration specifies the model; actual model access, architecture support and J-lens compatibility are worker responsibilities.
+The setup copies the token into the profile and checks URL syntax, but makes no network request. HTTPS is required except for loopback HTTP workers. This package does not deploy a VM, load a model by itself, renew a tunnel, or stop a pod. Use a worker compatible with the local checked-out Fork Microscope workflow API. The workflow configuration specifies the model; actual model access, architecture support and J-lens compatibility are worker responsibilities.
 
 Ask your agent: “Show the supported investigation settings and my profile limits. Help me construct and validate a configuration. Do not start until I approve the budget.” Once authorized, it can start, check status, export, and inspect the saved bundle. Downloaded files can be imported into the browser Explorer through its investigation import action; MCP does not automatically synchronize browser storage.
 
@@ -89,6 +95,8 @@ Ask your agent: “Show the supported investigation settings and my profile limi
 
 - **List:** `offset=0`, `limit=20` (maximum100). Returns local bundle filenames, counts and invalid-file diagnostics.
 - **Inspect:** required `bundle_id`; optional `pointer=""`, `offset=0`, `limit=20`, `text_limit=4000`. Returns the native value or a paginated description of children. Follow the returned pointers for details.
+- **Render:** required `bundle_id` and `expected_file_sha256` from listing; optional `run_index=0`, `pass_index=0`, `token_position`. Returns bounded saved evidence plus a content-addressed MCP Apps resource. Without a compatible UI host, the same structured evidence remains readable.
+- **Viewer data:** the same identity/selection inputs plus `offset=0`, `limit=5` (maximum 20). This read tool has no rendering metadata, so checkpoint and continuation page changes preserve the mounted viewer.
 - **Local export:** required `bundle_id`. Returns a new artifact path, file/payload hashes and artifact counts.
 - **Settings:** optional `config`. Returns the upstream field reference, profile ceilings and owned workflow IDs. A supplied configuration is validated offline.
 - **Start:** required `config` and `request_id`; `confirm_execution` defaults to false. Returns the owned workflow ID and bounded progress fields.
@@ -124,6 +132,14 @@ Copy complete exported investigation JSON files into the profile's evidence dire
 
 Every inspection validates the entire bundle. Targeted browsing is practical; recursively opening every field in a large investigation is slower. The upstream 64 MiB input cap remains. Local exports preserve original bytes. Worker exports preserve the native validated payload with upstream canonical serialization. No tool recomputes a graph while reading it.
 
+### Graph-led viewer
+
+After listing and pinning the file hash, call `fork_microscope_render_investigation`. The compact card expands into saved checkpoint counts, a retained-candidate summary, the shared original prefix, an actual contrasting pair when available, paginated continuations, provenance and missing-readout states. The graph currently supports consistent saved `position_mixture_v1` raw observations. Other sampling formats return an explicit unsupported state with inspection pointers; absent counts are never inferred from fitted probabilities. At most 128 checkpoints and bounded text previews are returned; truncation is disclosed and the original evidence remains available through inspection/export.
+
+Only the data-page, inspect and byte-retrieval tools are app-visible. Workflow tools remain model-only and cannot be invoked by the viewer. The self-contained resource has empty external connection, asset and frame allowlists. It makes no model or network calls. Evidence text is rendered as text, and the resource itself contains no investigation data.
+
+The viewer pins every page and export chunk to the listed file hash. A failed read or changed identity clears the displayed evidence. Export reassembles the original bytes and verifies SHA-256 before requesting a browser download; successful file delivery still depends on host permissions. A host without fullscreen support keeps the expanded content inline. Live ChatGPT iframe rendering and download delivery require separate acceptance; see [VIEWER-VALIDATION.md](VIEWER-VALIDATION.md).
+
 ## Interpretation
 
 - The curve estimates classified continuation outcomes conditional on saved prefixes under the recorded sampling and branch weighting. It is not the probability of the next token or proof that a decision occurred at one exact token.
@@ -137,6 +153,25 @@ For methodology, consult the original [Forking Fast paper](https://arxiv.org/abs
 
 ## Validation scope
 
-Development uses real previously saved Muse evidence plus clearly labeled synthetic fixtures. Lifecycle tests execute the pinned coordinator and authenticated HTTP client against the source's simulated model service. These tests do not execute a pretrained model, verify GPU memory capacity, or certify live J-lens inference. A real compute run requires your own worker, model access and budget.
+Earlier conversion validation used saved Muse evidence. Current offline acceptance uses clearly labeled synthetic fixtures and temporary storage. Lifecycle tests execute the local coordinator and authenticated HTTP client against simulated model services. These tests do not execute a pretrained model, verify GPU memory capacity, or certify live J-lens inference. A real compute run requires your own worker, model access and budget.
 
 Tested platform: Linux x86_64 and Python 3.13.13. Setup requires Git, uv and internet access to pinned GitHub sources, PyPI and the PyTorch CPU index. CPU Torch is needed by upstream validation imports; no model weights are installed locally by this package.
+
+## Offline readiness and private ChatGPT boundary
+
+Using the existing workbench environment, from `integrations/mcp`:
+
+```bash
+PYTHONPATH=../../src ../../.venv/bin/python src/discovery.py --check
+PYTHONPATH=../../src ../../.venv/bin/python -m pytest tests -q
+```
+
+Discovery reads source declarations and validates private profile metadata without reading token contents or contacting a worker. It lists all thirteen tools and the loaded workbench source path. `--check` exits 1 if dependencies or a valid profile are missing. A successful check only means ready to attempt stdio; it does not certify protocol compatibility. When FastMCP is absent, the actual server fails closed. The tests-only adapter registry cannot serve MCP and is never a production fallback.
+
+This is a local stdio integration. It can connect privately to ChatGPT through the official Secure MCP Tunnel; that path has completed saved-data acceptance, described in [CHATGPT-VALIDATION.md](CHATGPT-VALIDATION.md). The [plugin guide](../chatgpt-plugin/README.md) supplies reusable setup and skill packaging. Each connection still requires an authorized organization/workspace and a running local host/tunnel. A local profile is not public tenant authentication, and this adapter does not implement hosted OAuth. `fork-evidence://` identities are not registered MCP resources or remotely accessible download URLs. Use `read_investigation_bytes` with the returned bundle ID and expected file hash for bounded, repeatable retrieval; verify the full-file hash after reassembly. A download gateway remains separate.
+
+The no-network tests validate adapters and local evidence, not a live model run, billing enforcement, OAuth deployment or an independent-user trial. Private ChatGPT acceptance is a separate real transport test. See PROVENANCE.md and PROTOCOL-VALIDATION.md for the installed runtime and its fresh-install limitations.
+
+## Real local protocol validation
+
+The authorized isolated-runtime follow-up validates FastMCP 4.0.3 with MCP 2.2.0 over actual child-process stdio, including automatic and legacy protocol negotiation. See [PROTOCOL-VALIDATION.md](PROTOCOL-VALIDATION.md) for the environment and results. The original repository `.venv` remains unchanged and skips protocol tests if FastMCP is absent there. That local phase is distinct from the later private ChatGPT acceptance.

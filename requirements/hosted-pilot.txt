@@ -1,0 +1,10 @@
+# Lightweight hosted MCP; no torch, transformers, research checkout or GPU stack.
+fastapi==0.142.2
+uvicorn==0.53.0
+google-cloud-firestore==2.34.0
+firebase-admin==7.7.0
+google-cloud-secret-manager==2.31.0
+httpx==0.28.1
+cryptography==50.0.1
+fastmcp==4.0.3
+numpy==2.5.2

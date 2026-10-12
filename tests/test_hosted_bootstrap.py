@@ -130,6 +130,15 @@ class ConfigTests(unittest.TestCase):
     def test_valid_roles(self):
         self.assertEqual(bs.PublicConfig.from_env(self.env()).invited_emails, ("alice@example.test", "bob@example.test"))
         self.assertEqual(bs.ControllerConfig.from_env(self.env()).disk_gb, 30)
+        self.assertTrue(bs.PublicConfig.from_env(self.env()).drive_enabled)
+        self.assertTrue(bs.ControllerConfig.from_env(self.env(FM_DRIVE_ENABLED="true")).drive_enabled)
+
+    def test_drive_feature_flag_requires_explicit_boolean(self):
+        for cls in (bs.PublicConfig, bs.ControllerConfig):
+            for value in ("yes", "0", "disabled"):
+                with self.assertRaises(bs.ConfigError) as error:
+                    cls.from_env(self.env(FM_DRIVE_ENABLED=value))
+                self.assertIn("FM_DRIVE_ENABLED", str(error.exception))
 
     def test_reports_names_not_values(self):
         env = self.env(FM_PUBLIC_URL="http://plain.example.test", FM_WORKER_IMAGE="img:latest",

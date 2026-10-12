@@ -147,6 +147,12 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json_response(400, {"error": str(exc)})
             except Exception:
                 return self.json_response(500, {"error": "Reconstruction failed for these settings. Try a wider region."})
+        if parsed.path in {
+            "/product-theme.css", "/workflow-layout.css", "/product-workspace.mjs",
+            "/execution-adapter.mjs", "/hosted-fragment.html", "/advanced.html",
+            "/prompt-sets.html", "/hosted-import-ui.mjs",
+        }:
+            return super().do_GET()
         if parsed.path not in ("/hosted.html", "/hosted-ui.mjs", "/hosted-client.mjs", "/hosted-config.json", "/hosted.css", "/hosted-entry.mjs", "/", "/index.html", "/released-data.html", "/app.js", "/math.mjs", "/passes.mjs", "/graph-evidence.mjs", "/observatory.html", "/observatory.mjs", "/refinement-panel.mjs", "/refinement-panel.css", "/investigation-panel.mjs", "/investigation-panel.css", "/lens-panel.mjs", "/lens-panel.css", "/patching-panel.mjs", "/patching-panel.css", "/journey.css", "/walkthrough.mjs", "/evidence-import.mjs", "/observatory.css", "/observatory-base.css", "/styles.css", "/plotly.min.js", "/live.html", "/live.js", "/quick-investigation.mjs", "/quick-investigation-config.mjs", "/quick-investigation.css", "/compute-readiness.mjs", "/live.css", "/workspace.html", "/workspace.mjs", "/workspace.css", "/compare.html", "/compare.mjs", "/compare.css", "/worker-connection.js", "/method-credit.js", "/job-progress.mjs", "/response-review.mjs", "/download.mjs", "/workflow-panel.mjs", "/guide.html", "/guide.css", "/guide.mjs", "/app-navigation.css", "/request-retry.mjs", "/scoped-operation.mjs", "/classification.mjs", "/offline-evidence.mjs", "/demo-attendance.json", "/demo-portfolio.json", "/selection.mjs", "/investigation-shell.mjs", "/investigation-shell.css", "/investigation-workbench.mjs"):
             return self.send_error(404)
         super().do_GET()

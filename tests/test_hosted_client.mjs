@@ -4,6 +4,7 @@ import {webcrypto} from 'node:crypto';
 import {HostedClient,validateHostedConfig,readVerifiedBundle,assertDownloadCapability,quoteWithinAllowance,readHostedArtifact} from '../public/fork-microscope/hosted-client.mjs';
 const config={enabled:true,apiBase:'https://api.example',firebase:{apiKey:'public-firebase-config',authDomain:'project.firebaseapp.com',projectId:'project'}};
 const user=uid=>({uid,getIdToken:async()=>`id-token-${uid}`});
+if(!globalThis.crypto)globalThis.crypto=webcrypto;
 test('disabled config never asks for cloud config',()=>assert.deepEqual(validateHostedConfig({enabled:false}),{enabled:false}));
 test('reject unsafe API origins',()=>{for(const url of ['http://api.example','https://user:password@api.example','https://api.example?key=bad'])assert.throws(()=>validateHostedConfig({...config,apiBase:url}));});
 test('only Firebase user token sent, same approved intent retains retry identity',async()=>{
@@ -16,6 +17,37 @@ test('account switch invalidates pending request before transport',async()=>{let
 test('old approved intent cannot be replayed for a new account',async()=>{const client=new HostedClient(config);client.setUser(user('alice'));const intent=client.intent('POST','/sessions',{});client.setUser(user('bob'));await assert.rejects(client.submit(intent),/previous account/);});
 test('server error detail retained without exposing token',async()=>{const client=new HostedClient(config,{fetcher:async()=>new Response(JSON.stringify({detail:'Invite required'}),{status:403})});client.setUser(user('alice'));await assert.rejects(client.request('/me'),e=>e.status===403&&e.message==='Invite required');});
 async function checksum(bytes){return Array.from(new Uint8Array(await webcrypto.subtle.digest('SHA-256',bytes)),n=>n.toString(16).padStart(2,'0')).join('');}
+test('import retains exact copied bytes and identity across uncertain retry',async()=>{
+ const original=new TextEncoder().encode('{ "native": true }\n'),hash=await checksum(original),calls=[];let fail=true;
+ const client=new HostedClient(config,{fetcher:async(url,options)=>{calls.push({url,options});if(fail){fail=false;throw Error('reply lost');}return new Response(JSON.stringify({saved_evidence:{file_sha256:hash,bytes:original.length,server_saved:true}}));}});
+ client.setUser(user('alice'));
+ const pending=client.importEvidence(original,hash,'stable-file',true);original[0]=33;
+ await assert.rejects(pending,/reply lost/);
+ const bytes=new TextEncoder().encode('{ "native": true }\n');await client.importEvidence(bytes,hash,'stable-file',true);
+ assert.deepEqual(calls[0].options.body,bytes);assert.deepEqual(calls[1].options.body,bytes);
+ assert.equal(calls[0].options.headers['Idempotency-Key'],calls[1].options.headers['Idempotency-Key']);
+ assert.equal(calls[0].url,'https://api.example/api/hosted/v1/evidence/import');
+ assert.equal(calls[0].options.headers['X-Fork-Evidence-Synthetic'],'true');
+ assert.equal(calls[0].options.headers.Authorization,'Bearer id-token-alice');
+ assert.equal(calls[0].options.redirect,'error');assert.equal(calls[0].options.cache,'no-store');
+});
+test('import blocks changed bytes and account switches before sending',async()=>{
+ const bytes=new TextEncoder().encode('{}'),hash=await checksum(bytes);let calls=0,resolve;
+ const client=new HostedClient(config,{fetcher:async()=>{calls++;return new Response('{}');}});
+ client.setUser(user('alice'));await assert.rejects(client.importEvidence(bytes,'0'.repeat(64),'one'),/checksum/);
+ client.setUser({uid:'alice',getIdToken:()=>new Promise(r=>resolve=r)});
+ const pending=client.importEvidence(bytes,hash,'one');
+ while(!resolve)await new Promise(r=>setImmediate(r));
+ client.setUser(user('bob'));resolve('old-token');await assert.rejects(pending,/Account changed/);assert.equal(calls,0);
+});
+test('import rejects wrong saved receipt and switched account after transport',async()=>{
+ const bytes=new TextEncoder().encode('{}'),hash=await checksum(bytes);let resolve;
+ const client=new HostedClient(config,{fetcher:async()=>new Response(JSON.stringify({saved_evidence:{file_sha256:'b'.repeat(64),bytes:2,server_saved:true}}))});
+ client.setUser(user('alice'));await assert.rejects(client.importEvidence(bytes,hash,'one'),/identity/);
+ client.fetcher=()=>new Promise(r=>resolve=r);
+ const pending=client.importEvidence(bytes,hash,'one');while(!resolve)await new Promise(r=>setImmediate(r));
+ client.setUser(user('bob'));resolve(new Response('{}'));await assert.rejects(pending,/Account changed/);
+});
 test('bounded artifact download verifies exact bytes before JSON import',async()=>{const bytes=new TextEncoder().encode(JSON.stringify({schema:'bundle',payload:{}}));const capability={url:'https://pod1-8780.proxy.runpod.net/bundles/artifact1',download_token:'one-artifact',sha256:await checksum(bytes),size:bytes.length};let sent;const {bundle}=await readVerifiedBundle(capability,'artifact1',{cryptoImpl:webcrypto,fetcher:async(url,options)=>{sent=options;return new Response(bytes);}});assert.equal(bundle.schema,'bundle');assert.equal(sent.headers.Authorization,'Bearer one-artifact');assert.equal(sent.redirect,'error');});
 test('artifact checksum mismatch and byte limit fail closed',async()=>{const bytes=new TextEncoder().encode('{}');const capability={url:'https://pod1-8780.proxy.runpod.net/bundles/artifact1',download_token:'one-artifact',sha256:'0'.repeat(64)};await assert.rejects(readVerifiedBundle(capability,'artifact1',{cryptoImpl:webcrypto,fetcher:async()=>new Response(bytes)}),/checksum mismatch/);await assert.rejects(readVerifiedBundle(capability,'artifact1',{cryptoImpl:webcrypto,maxBytes:1,fetcher:async()=>new Response(bytes)}),/import limit/);});
 test('reject artifact token exfiltration origins and paths',()=>{for(const url of ['https://evil.example/bundles/artifact1','https://pod1-8780.proxy.runpod.net/bundles/other','https://pod1-8780.proxy.runpod.net/bundles/artifact1?redirect=evil','http://pod1-8780.proxy.runpod.net/bundles/artifact1'])assert.throws(()=>assertDownloadCapability({url,download_token:'private',sha256:'a'.repeat(64)},'artifact1'));});

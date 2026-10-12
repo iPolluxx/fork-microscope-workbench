@@ -20,6 +20,8 @@ Both roles
   FM_PUBLIC_URL                     https origin of the public API (also what workers call)
   FM_DASHBOARD_ORIGIN               https origin serving hosted.html
   FM_CONTROLLER_OIDC_AUDIENCE       exact ``aud`` of internal ID tokens
+  FM_DRIVE_ENABLED                  optional true | false, default true; false is device-only
+Drive-enabled deployments only
   FM_DRIVE_CLIENT_ID                OAuth web client id
   FM_DRIVE_REDIRECT_URI             must equal FM_PUBLIC_URL + /api/hosted/v1/connections/drive/callback
   FM_DRIVE_CLIENT_SECRET            OAuth client secret (Cloud Run secret env), or
@@ -48,6 +50,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from .auth import FirebaseAuthenticator, IdentityToolkitRevocation, StaticInvites
+from .account import RunPodAccount, validate_runpod_key
 from .catalog import MODELS, Catalog
 from .credentials import (GoogleSecretVault, Secret, StreamResponse, UrllibTransport, VaultError,
                           adc_token_provider)
@@ -101,6 +104,12 @@ class _Reader:
             self._bad(name, "must be one of " + "/".join(options))
             return ""
         return value
+
+    def boolean(self, name, default=True):
+        value = self.text(name, default="true" if default else "false").lower()
+        if value not in {"true", "false"}:
+            self._bad(name, "must be true or false")
+        return value == "true"
 
     def number(self, name, default, low, high, integer=True):
         raw = (self.env.get(name) or "").strip()
@@ -170,12 +179,14 @@ class _Common:
     public_url: str
     dashboard_origin: str
     oidc_audience: str
+    drive_enabled: bool
     drive_client_id: str
     drive_redirect_uri: str
     drive_client_secret: Any = field(repr=False)
 
     @staticmethod
     def read(reader):
+        drive_enabled = reader.boolean("FM_DRIVE_ENABLED")
         values = dict(
             environment=reader.choice("FM_HOSTED_ENV", ("production", "staging")),
             project=reader.text("FM_GCP_PROJECT", pattern=PROJECT),
@@ -184,14 +195,17 @@ class _Common:
             public_url=reader.url("FM_PUBLIC_URL"),
             dashboard_origin=reader.url("FM_DASHBOARD_ORIGIN"),
             oidc_audience=reader.text("FM_CONTROLLER_OIDC_AUDIENCE", limit=2048),
-            drive_client_id=reader.text("FM_DRIVE_CLIENT_ID", limit=256),
-            drive_redirect_uri=reader.url("FM_DRIVE_REDIRECT_URI", origin_only=False),
-            drive_client_secret=_drive_secret(reader))
-        if values["public_url"] and values["drive_redirect_uri"] != values["public_url"] + CALLBACK_PATH:
+            drive_enabled=drive_enabled,
+            drive_client_id=reader.text("FM_DRIVE_CLIENT_ID", limit=256) if drive_enabled else "",
+            drive_redirect_uri=reader.url("FM_DRIVE_REDIRECT_URI", origin_only=False) if drive_enabled else "",
+            drive_client_secret=_drive_secret(reader) if drive_enabled else None)
+        if drive_enabled and values["public_url"] and values["drive_redirect_uri"] != values["public_url"] + CALLBACK_PATH:
             reader._bad("FM_DRIVE_REDIRECT_URI", "must equal FM_PUBLIC_URL + " + CALLBACK_PATH)
         return values
 
     def drive_config(self):
+        if not self.drive_enabled:
+            raise ConfigError("FM_DRIVE_ENABLED: Drive storage is disabled")
         return DriveConfig(self.drive_client_id, self.drive_redirect_uri)
 
 
@@ -213,12 +227,12 @@ class PublicConfig(_Common):
         invited = tuple(sorted({e.lower() for e in re.split(r"[\s,;]+", env.get("FM_INVITED_EMAILS") or "") if e}))
         if not invited or len(invited) > 500 or not all(EMAIL.fullmatch(e) for e in invited):
             r._bad("FM_INVITED_EMAILS", "1-500 valid email addresses required")
-        post = r.url("FM_DRIVE_POST_AUTH_URL", origin_only=False)
+        post = r.url("FM_DRIVE_POST_AUTH_URL", origin_only=False) if common["drive_enabled"] else ""
         if post and _origin(post) != common["dashboard_origin"]:
             r._bad("FM_DRIVE_POST_AUTH_URL", "must be on FM_DASHBOARD_ORIGIN")
         extra = dict(firebase_project=r.text("FM_FIREBASE_PROJECT_ID", pattern=PROJECT), invited_emails=invited,
                      controller_url=r.url("FM_CONTROLLER_URL"), post_auth_url=post,
-                     cookie_name=r.text("FM_OAUTH_COOKIE_NAME", pattern=COOKIE, default="__Host-fm_drive_oauth"))
+                     cookie_name=r.text("FM_OAUTH_COOKIE_NAME", pattern=COOKIE, default="__Host-fm_drive_oauth") if common["drive_enabled"] else "__Host-fm_drive_oauth")
         r.done()
         return cls(**common, **extra)
 
@@ -488,6 +502,11 @@ def _drive_failure(exc):
     return HostedError(status, exc.public_message if status < 500 else "Storage temporarily unavailable")
 
 
+def _require_drive(config):
+    if not config.drive_enabled:
+        raise HostedError(503, "Drive storage is disabled for this deployment")
+
+
 def _artifact(value, *, extra=()):
     allowed = {"id", "sha256", "size_bytes", *extra}
     if (not isinstance(value, dict) or not {"id", "sha256", "size_bytes"} <= set(value) or not set(value) <= allowed
@@ -571,6 +590,7 @@ class ControllerDeps:
     runpod: Callable = RunPod
     drive_transport: Any = None
     clock: Callable = time.time
+    after_reconcile: Any = None  # additive pilot retention; never replaces provider cleanup
 
 
 def assemble_controller_app(config, deps):
@@ -584,18 +604,23 @@ def assemble_controller_app(config, deps):
                       disk_rate_source=config.disk_rate_source, disk_gb=config.disk_gb,
                       maximum_seconds=config.maximum_seconds, quote_ttl_seconds=config.quote_ttl_seconds,
                       startup_allowance_seconds=config.startup_allowance_seconds,
-                      export_reserve_seconds=config.export_reserve_seconds)
-    service = HostedService(deps.store, clock=clock, vault=deps.vault, catalog=catalog, lifecycle=None)
+                      export_reserve_seconds=config.export_reserve_seconds,worker_image=config.worker_image)
+    account = RunPodAccount(provider_factory)
+    service = HostedService(deps.store, clock=clock, vault=deps.vault, catalog=catalog, lifecycle=None,
+                            credential_validator=lambda uid, key: validate_runpod_key(key, provider_builder=deps.runpod),
+                            account_status=account.status, drive_enabled=config.drive_enabled)
     # The lifecycle needs the service's claim/enrollment methods, so it is attached afterwards.
     service.lifecycle = Lifecycle(
         provider_factory, worker_image=config.worker_image, control_plane_url=config.public_url,
         persist_before_create=service.persist_before_create,
         worker_environment=lambda session: {"FM_ENROLLMENT_TOKEN": service.prepare_enrollment(session["id"])},
         clock=clock, dashboard_origin=config.dashboard_origin,
-        heartbeat_timeout_seconds=config.heartbeat_timeout_seconds)
-    drive = DriveController(deps.store, deps.vault, config.drive_config(), config.drive_client_secret,
-                            deps.drive_transport, clock)
-    artifacts = DriveArtifacts(deps.store, drive)
+        heartbeat_timeout_seconds=config.heartbeat_timeout_seconds,allow_unbound_quotes=False)
+    drive = artifacts = None
+    if config.drive_enabled:
+        drive = DriveController(deps.store, deps.vault, config.drive_config(), config.drive_client_secret,
+                                deps.drive_transport, clock)
+        artifacts = DriveArtifacts(deps.store, drive)
 
     app = FastAPI(title="Fork Microscope hosted controller", openapi_url=None, docs_url=None, redoc_url=None)
     _register_errors(app)
@@ -620,21 +645,27 @@ def assemble_controller_app(config, deps):
             raise HostedError(422, str(exc)[:200]) from None
 
     def drive_status(payload):
-        return drive.status(owner_of(payload, keys=()))
+        owner = owner_of(payload, keys=())
+        return dict(drive.status(owner), enabled=True) if config.drive_enabled else {"enabled": False, "connected": False}
 
     def drive_disconnect(payload):
-        return drive.disconnect(owner_of(payload, keys=()))
+        owner = owner_of(payload, keys=())
+        _require_drive(config)
+        return drive.disconnect(owner)
 
     def drive_prepare(payload):
         owner = owner_of(payload, keys=("session_id", "job_id", "artifact"))
+        _require_drive(config)
         return artifacts.prepare(owner, _id(payload, "session_id"), _id(payload, "job_id"), payload.get("artifact"))
 
     def drive_verify(payload):
         owner = owner_of(payload, keys=("session_id", "job_id", "artifacts"))
+        _require_drive(config)
         return artifacts.verify(owner, _id(payload, "session_id"), _id(payload, "job_id"), payload.get("artifacts"))
 
     def drive_download(payload):
         owner = owner_of(payload, keys=("file_ref",))
+        _require_drive(config)
         ref = payload.get("file_ref")
         if not isinstance(ref, str) or not re.fullmatch(r"df_[0-9a-f]{32}", ref):
             raise HostedError(422, "Invalid request")
@@ -667,8 +698,18 @@ def assemble_controller_app(config, deps):
         app.add_api_route("/internal/" + path, endpoint, methods=["POST"])
 
     publisher = config.public_service_account
-    route("reconcile", config.scheduler_service_account, lambda payload: service.reconcile())
+    def reconcile(payload):
+        result = service.reconcile()
+        if deps.after_reconcile is not None:
+            try:
+                retention = deps.after_reconcile()
+            except Exception:
+                retention = {"status": "retry_required"}
+            result = dict(result, pilot_retention=retention)
+        return result
+    route("reconcile", config.scheduler_service_account, reconcile)
     route("catalog/quote", publisher, quote)
+    route("runpod/account", publisher, lambda payload: service.public(owner_of(payload, keys=()), "account_status"))
     route("drive/status", publisher, guarded(drive_status))
     route("drive/disconnect", publisher, guarded(drive_disconnect))
     route("drive/artifact-prepare", publisher, drive_prepare)
@@ -695,6 +736,8 @@ class PublicDeps:
     drive_transport: Any = None
     clock: Callable = time.time
     allow_process_local: bool = False  # simulations only; OAuth state must be durable in production
+    credential_validator: Any = None  # explicitly injected fake only in create_test_apps
+    service_wrapper: Any = None  # optional pilot admission boundary, no auth fallback
 
 
 def assemble_public_app(config, deps):
@@ -704,10 +747,13 @@ def assemble_public_app(config, deps):
     from .api import create_app
 
     client, vault = deps.controller, WriteOnlyVault(deps.vault)
-    drive_auth = DriveAuthorization(deps.store, vault, config.drive_config(), config.drive_client_secret,
-                                    deps.drive_transport, deps.clock, deps.allow_process_local)
+    drive_auth = None
+    if config.drive_enabled:
+        drive_auth = DriveAuthorization(deps.store, vault, config.drive_config(), config.drive_client_secret,
+                                        deps.drive_transport, deps.clock, deps.allow_process_local)
 
     def artifact_prepare(session, job, body):
+        _require_drive(config)
         if session.get("storage_mode") != "drive":
             raise HostedError(409, "Session does not use Drive storage")
         grant = client.call("drive/artifact-prepare", {"owner_uid": session["owner_uid"], "session_id": session["id"],
@@ -718,6 +764,7 @@ def assemble_public_app(config, deps):
         return {"file_ref": grant["file_ref"], "upload_url": url, "expires_at": grant.get("expires_at")}
 
     def artifact_verify(session, job, artifacts):
+        _require_drive(config)
         wanted = [{k: a.get(k) for k in ("id", "sha256", "size_bytes") if k in a} for a in artifacts]
         verified = client.call("drive/artifact-verify", {"owner_uid": session["owner_uid"], "session_id": session["id"],
                                                          "job_id": job["id"], "artifacts": wanted}, timeout=60.0)["artifacts"]
@@ -731,7 +778,12 @@ def assemble_public_app(config, deps):
             given["file_ref"], given["size_bytes"] = good["file_ref"], good["size_bytes"]
 
     service = HostedService(deps.store, clock=deps.clock, vault=vault, catalog=RemoteCatalog(client), lifecycle=None,
-                            artifact_prepare=artifact_prepare, artifact_verify=artifact_verify)
+                            artifact_prepare=artifact_prepare, artifact_verify=artifact_verify,
+                            credential_validator=deps.credential_validator or (lambda uid, key: validate_runpod_key(key)),
+                            account_status=lambda uid: client.call("runpod/account", {"owner_uid": uid}),
+                            drive_enabled=config.drive_enabled)
+    if deps.service_wrapper is not None:
+        service = deps.service_wrapper(service)
     app = create_app(service, deps.authenticator, worker_enabled=True, controller_enabled=False,
                      allowed_origins=[config.dashboard_origin])
     _register_errors(app)  # never leak exception detail from routes added here
@@ -756,16 +808,20 @@ def assemble_public_app(config, deps):
     @router.get(BASE + "/connections/drive")
     async def drive_status(request: Request):
         uid = await identity(request)
+        if not config.drive_enabled:
+            return JSONResponse({"enabled": False, "connected": False}, headers=quiet)
         return JSONResponse(await run_in_threadpool(client.call, "drive/status", {"owner_uid": uid}), headers=quiet)
 
     @router.post(BASE + "/connections/drive/disconnect")
     async def drive_disconnect(request: Request):
         uid = await identity(request)
+        _require_drive(config)
         return JSONResponse(await run_in_threadpool(client.call, "drive/disconnect", {"owner_uid": uid}), headers=quiet)
 
     @router.post(BASE + "/connections/drive/begin")
     async def drive_begin(request: Request):
         uid = await identity(request)
+        _require_drive(config)
         start = await run_in_threadpool(drive_auth.begin, uid)
         response = JSONResponse({"authorization_url": start.url}, headers=quiet)
         response.set_cookie(config.cookie_name, start.binding, max_age=600, path="/", secure=True, httponly=True, samesite="lax")
@@ -773,6 +829,7 @@ def assemble_public_app(config, deps):
 
     @router.get(CALLBACK_PATH)
     async def drive_callback(request: Request):
+        _require_drive(config)
         # Reached by a browser redirect from Google: identity is the owner-bound, single-use
         # state plus the HttpOnly cookie set by /begin. The destination never depends on input.
         query, ok = request.query_params, False
@@ -795,11 +852,14 @@ def assemble_public_app(config, deps):
         artifact = await run_in_threadpool(service.public, uid, "download", {}, artifact_id, None)
         if "url" in artifact or not isinstance(artifact.get("file_ref"), str):
             raise HostedError(409, "Artifact is stored on your device")
+        _require_drive(config)
         headers, chunks = await run_in_threadpool(client.stream, "drive/download", {"owner_uid": uid, "file_ref": artifact["file_ref"]})
         return StreamingResponse(chunks, headers=dict(headers, **{"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}))
 
     app.router.routes[:0] = router.routes  # take precedence over core's placeholder drive status
     app.state.service = service
+    app.state.controller_client = client
+    app.state.authenticator = deps.authenticator
     return app
 
 
@@ -947,5 +1007,6 @@ def create_test_apps(*, users, runpod, google_transport, vault=None, store=None,
     controller = assemble_controller_app(controller_config, ControllerDeps(
         store, vault, OidcVerifier(controller_config.oidc_audience, verify), lambda key: runpod, google_transport, clock))
     client = ControllerClient(public_config.controller_url, lambda: tokens["public"], InProcessTransport(controller))
-    public = assemble_public_app(public_config, PublicDeps(store, FakeAuthenticator(users), vault, client, google_transport, clock, True))
+    public = assemble_public_app(public_config, PublicDeps(store, FakeAuthenticator(users), vault, client, google_transport, clock, True,
+        lambda uid, key: validate_runpod_key(key, provider_builder=lambda unused_key: runpod)))
     return SimulatedApps(public, controller, store, vault, public_config, controller_config, tokens)

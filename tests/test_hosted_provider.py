@@ -8,7 +8,7 @@ class HostedProviderTests(unittest.TestCase):
     def setUp(self):
         self.provider = FakeRunPod([{"id": "gpu", "manufacturer": "NVIDIA", "secure": True, "memory": 24,
             "price": {"secure": .5}, "availability": "HIGH"}])
-        self.catalog = Catalog(lambda body: self.provider, disk_usd_per_gb_hour=.0001, disk_rate_source="operator configured")
+        self.catalog = Catalog(lambda body: self.provider, disk_usd_per_gb_hour=.0001, disk_rate_source="operator configured",worker_image="example/worker@sha256:"+"a"*64)
         self.quote = self.catalog.quote({"model_id": self.catalog.models()[0]["id"]}, 10)
         self.session = {"id": "session1", "request_name": "fm-session1", "owner_uid": "u",
             "desired_state": "running", "observed_state": "requested", "expires_at": 1810, "quote": self.quote}

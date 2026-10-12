@@ -1,8 +1,17 @@
 """Model-specific answer extraction without confusing Muse reasoning with its reply."""
 import re
 import unicodedata
-from forking_paths.answers import parse_mmlu_answer
-from forking_paths.run import extract_answers_for_branches as upstream_extract
+
+def parse_mmlu_answer(*args, **kwargs):
+    # Saved-evidence validation uses only the pure text helpers in this module.
+    # Load research/model code only when executing its existing extraction path.
+    from forking_paths.answers import parse_mmlu_answer as parse
+    return parse(*args, **kwargs)
+
+
+def upstream_extract(*args, **kwargs):
+    from forking_paths.run import extract_answers_for_branches
+    return extract_answers_for_branches(*args, **kwargs)
 
 
 

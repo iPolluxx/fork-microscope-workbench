@@ -8,14 +8,22 @@ import re
 import time
 from urllib.parse import urlsplit
 from .provider import CreateUncertain, ProviderError
+from .catalog import immutable_worker_image
+
+# Controller retry states, not reasons a session was terminated.
+TRANSIENT_ERRORS = {"create_outcome_pending", "create_outcome_manual_attention",
+                    "provider_unavailable", "credential_unavailable"}
 
 
 class Lifecycle:
     def __init__(self, provider_factory, *, worker_image, control_plane_url,
                  persist_before_create, worker_environment, clock=time.time, dashboard_origin=None,
-                 heartbeat_timeout_seconds=120, uncertain_create_grace_seconds=300):
-        if not re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", worker_image):
-            raise ValueError("Immutable worker image digest required")
+                 heartbeat_timeout_seconds=120, uncertain_create_grace_seconds=300,
+                 allow_unbound_quotes=False):
+        immutable_worker_image(worker_image)
+        if type(allow_unbound_quotes) is not bool:
+            raise ValueError("allow_unbound_quotes must be a boolean")
+        self.allow_unbound_quotes=allow_unbound_quotes
         url = urlsplit(control_plane_url)
         if url.scheme != "https" or not url.hostname or url.username or url.password or url.query or url.fragment:
             raise ValueError("Configured HTTPS control plane required")
@@ -50,6 +58,19 @@ class Lifecycle:
         name = session["request_name"]
         if not re.fullmatch(r"fm-[a-zA-Z0-9_-]{8,120}", name):
             raise ValueError("Invalid managed request name")
+        image=session['quote'].get('worker_image')
+        # Reject only creation admission. Already attempted creates and existing
+        # pods remain observed/cleaned by exact name even after controller rollout;
+        # an image setting change must never strand their resource fence.
+        if not terminate and not session.get('create_attempted') and not session.get('provider_ref'):
+            try:
+                if 'worker_image' not in session['quote'] and self.allow_unbound_quotes:
+                    image=self.image
+                if immutable_worker_image(image)!=self.image:
+                    raise ValueError('Reviewed worker image changed')
+            except ValueError:
+                return {'desired_state':'terminated','observed_state':'terminating','cleanup_verified':False,
+                        'error_code':'worker_image_review_required'}
         try:
             provider = self.provider_factory(session)
             if provider is None:
@@ -64,10 +85,15 @@ class Lifecycle:
         try:
             pods = [pod for pod in provider.list_pods() if pod.get("name") == name]
             ref = session.get("provider_ref")
+            mismatch = False
             if ref:
                 referenced = provider.get_pod(ref)
                 if referenced and referenced.get("name") != name:
-                    return {"observed_state": "failed", "error_code": "provider_ownership_mismatch"}
+                    # Never delete a differently named pod, but still terminate and
+                    # clean exact-name pods. The unexplained reference blocks verified
+                    # cleanup until an operator confirms its absence.
+                    referenced, mismatch, terminate = None, True, True
+                    deadline_code = "provider_ownership_mismatch"
                 if referenced and not any(p["id"] == ref for p in pods):
                     pods.append(referenced)
             if terminate:
@@ -77,15 +103,20 @@ class Lifecycle:
                 remaining.extend(p for p in (provider.get_pod(pod["id"]) for pod in pods) if p)
                 # If a POST crashed, absence is not proof it will never appear.
                 uncertain = session.get("create_attempted") and not session.get("create_rejected") and not session.get("provider_ref") and not pods
-                attention = bool(uncertain and now >= session["expires_at"] + self.uncertain_create_grace)
-                return {"desired_state": "terminated", "observed_state": "terminating" if remaining or uncertain else "terminated",
-                        "cleanup_verified_at": None if remaining or uncertain else now,
-                        "cleanup_verified": not bool(remaining or uncertain),
+                # A later cleanup tick has no deadline of its own; keep the recorded
+                # termination cause rather than erasing it, but drop transient codes.
+                prior = session.get("error_code")
+                cause = deadline_code or (None if prior in TRANSIENT_ERRORS else prior)
+                attention = mismatch or bool(uncertain and now >= session["expires_at"] + self.uncertain_create_grace)
+                blocked = bool(remaining or uncertain or mismatch)
+                return {"desired_state": "terminated", "observed_state": "terminating" if blocked else "terminated",
+                        "cleanup_verified_at": None if blocked else now,
+                        "cleanup_verified": not blocked,
                         "uncertain_resource_fence": bool(uncertain),
                         "manual_attention_required": attention,
-                        "cleanup_status": "manual_attention" if attention else "pending" if remaining or uncertain else "verified",
-                        **({"provider_ref": pods[0]["id"]} if pods else {}),
-                        "error_code": "create_outcome_manual_attention" if attention else deadline_code}
+                        "cleanup_status": "manual_attention" if attention else "pending" if blocked else "verified",
+                        **({"provider_ref": pods[0]["id"]} if pods and not mismatch else {}),
+                        "error_code": deadline_code if mismatch else "create_outcome_manual_attention" if attention else cause}
             if len(pods) > 1:
                 # All share this session's exact managed name. Delete on next tick.
                 return {"desired_state": "terminated", "observed_state": "terminating", "error_code": "duplicate_provider_name"}
@@ -97,7 +128,10 @@ class Lifecycle:
                 # Provider RUNNING is not worker readiness. Worker enrollment owns ready.
                 state = session.get("observed_state")
                 return {"provider_ref": pod["id"], "observed_state": state if state in {"ready", "running", "saving"} else "booting"}
-            if session.get("create_attempted"):
+            if session.get("create_attempted") or ref:
+                # A persisted provider reference itself proves creation already
+                # happened, including legacy records without the explicit flag.
+                # Observation after restart must never admit a replacement POST.
                 return {"observed_state": "provisioning", "error_code": "create_outcome_pending"}
             quote = session["quote"]
             # Quote freshness was approved at session acceptance, not at this
@@ -109,7 +143,7 @@ class Lifecycle:
                 raise ValueError("Provider and Drive credentials forbidden in worker environment")
             if not self.claim(session["id"], {"create_attempted": True, "observed_state": "provisioning"}):
                 return {"observed_state": "provisioning"}
-            body = {"name": name, "image": self.image,
+            body = {"name": name, "image": image,
                     "gpu": {"id": quote["gpu_id"], "count": 1, "minCudaVersion": "12.8"},
                     "cloud": "SECURE", "disk": quote["disk_gb"], "ports": ["8780/http"] if session.get("storage_mode", session.get("destination")) == "device" else [], "startSsh": False,
                     "startJupyter": False, "env": dict(env, FM_CONTROL_PLANE_URL=self.url,

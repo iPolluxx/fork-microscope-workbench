@@ -9,6 +9,16 @@
 
 A workbench for exploring where a model's possible answers change along a generated response. Attach your model, sample continuations at checkpoints, inspect the actual text, then collect more evidence around an interesting interval.
 
+## Fork Microscope in ChatGPT
+
+Ask a question about a saved investigation, open its interactive outcome graph, read the actual competing continuations, and retrieve the original evidence with a verified checksum. The optional ChatGPT app connects natural-language investigation work to the same sampling and evidence contracts as the workbench.
+
+The deployed private pilot has been checked in the actual ChatGPT viewer with saved Qwen evidence. Viewing saved results requires no model worker. New investigations use a separate, explicitly approved compute workflow; installation and an old successful run do not establish current provider readiness. The latest fresh managed trial produced an artifact but did not complete its private-library save; [validation scope](docs/chatgpt/VALIDATION.md) records this limitation.
+
+![Deployed ChatGPT viewer: saved checkpoint graph and original token context](docs/images/chatgpt/01-saved-graph-and-token-context.png)
+
+[App showcase and screenshots](docs/chatgpt/README.md) · [Architecture](docs/chatgpt/ARCHITECTURE.md) · [Connect your own private app](integrations/chatgpt-plugin/README.md) · [Attendee-choice case study](docs/chatgpt/ATTENDEE-CASE-STUDY.md)
+
 Built around [Goodfire's *Forking Fast* research](https://arxiv.org/abs/2608.19611) and its [released implementation](https://github.com/ericb-goodfire/forking-fast). The contribution here is the research workflow: custom prompts, configurable passes, exact-trace refinement, portable evidence, focused Jacobian lens readouts, and a connected interface. These are behavioral measurements, not proof of an internal reasoning mechanism.
 
 ![The observatory: outcome map, recorded continuations and checkpoint inspector](docs/images/observatory.jpg)

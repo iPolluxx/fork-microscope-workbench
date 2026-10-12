@@ -1,6 +1,7 @@
 /** Hosted requests carry only Firebase user ID tokens. No provider secret persists. */
 export const FIREBASE_VERSION='12.3.0';
 export const MAX_BUNDLE_BYTES=64*1024*1024;
+export const MAX_PILOT_IMPORT_BYTES=16*1024*1024;
 export function validateHostedConfig(raw){
  if(raw?.enabled!==true)return {enabled:false};
  const url=new URL(raw.apiBase);
@@ -29,6 +30,46 @@ export class HostedClient{
   return result;
  }
  async submit(intent){if(intent.epoch!==this.epoch)throw Error('This request belongs to a previous account.');return this.request(intent.path,intent);}
+ async importEvidence(body,expectedSha256,idempotencyKey,synthetic=false){
+  if(!this.config.enabled)throw Error('Hosted evidence is not enabled on this site.');
+  if(!(body instanceof Uint8Array || body instanceof ArrayBuffer))throw Error('Choose the original JSON file bytes.');
+  const bytes=new Uint8Array(body instanceof Uint8Array?body:body.slice(0));
+  if(!bytes.byteLength||bytes.byteLength>MAX_PILOT_IMPORT_BYTES)throw Error('Choose a native investigation JSON file of at most 16 MiB.');
+  if(!/^[a-f0-9]{64}$/.test(expectedSha256)||!/^[A-Za-z0-9_.:-]{1,128}$/.test(idempotencyKey)||typeof synthetic!=='boolean')throw Error('Invalid file import identity.');
+  const epoch=this.epoch,user=this.user;if(!user)throw new HostedError('Sign in before importing saved evidence.',401);
+  const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),n=>n.toString(16).padStart(2,'0')).join('');
+  if(digest!==expectedSha256)throw Error('File checksum changed; choose the original file again.');
+  const token=await user.getIdToken();
+  if(epoch!==this.epoch||user!==this.user)throw Error('Account changed. Nothing was submitted from this page.');
+  const response=await this.fetcher(this.config.apiBase+'/api/hosted/v1/evidence/import',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json','Idempotency-Key':idempotencyKey,'X-Fork-Evidence-SHA256':expectedSha256,'X-Fork-Evidence-Synthetic':String(synthetic)},credentials:'same-origin',cache:'no-store',redirect:'error',body:bytes});
+  if(epoch!==this.epoch||user!==this.user)throw Error('Account changed. Refresh your workspace to check its library.');
+  let result;try{result=await response.json();}catch{throw new HostedError('Import could not be confirmed; retry the same file.',response.status);}
+  if(!response.ok)throw new HostedError(result.detail||'Import could not be confirmed; retry the same file.',response.status);
+  if(result?.saved_evidence?.file_sha256!==expectedSha256||result.saved_evidence.bytes!==bytes.byteLength||result.saved_evidence.server_saved!==true)throw Error('Saved evidence identity was not verified. Refresh the library before retrying.');
+  return result;
+ }
+}
+// Credential retries stay only in this page's memory. A corrected key is a new
+// request; an uncertain result retains the same identity only for the same key.
+const credentialSubmissions=new WeakMap();
+export function submitRunPodCredential(client,intents,apiKey){
+ const name='runpod-connect',method='PUT',path='/connections/runpod';
+ let intent=intents.get(name);
+ if(!intent||intent.epoch!==client.epoch||intent.method!==method||intent.path!==path||intent.body?.api_key!==apiKey){
+  intent=client.intent(method,path,{api_key:apiKey});intents.set(name,intent);
+ }
+ if(credentialSubmissions.has(intent))return credentialSubmissions.get(intent);
+ const forget=()=>{if(intents.get(name)===intent)intents.delete(name);};
+ const pending=(async()=>{
+  try{const result=await client.submit(intent);forget();return result;}
+  catch(error){
+   // Timeouts, too-early/rate-limit replies and server/transport errors can be
+   // uncertain. A definitive credential rejection must not retain the old key.
+   if(Number.isInteger(error?.status)&&error.status>=400&&error.status<500&&![408,425,429].includes(error.status))forget();
+   throw error;
+  }finally{credentialSubmissions.delete(intent);}
+ })();
+ credentialSubmissions.set(intent,pending);return pending;
 }
 export function assertDownloadCapability(data,artifactId){
  if(typeof data.url!=='string'||typeof data.download_token!=='string'||!data.download_token)throw Error('Evidence download is unavailable.');

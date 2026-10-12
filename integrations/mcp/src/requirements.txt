@@ -19,7 +19,8 @@ exceptiongroup==1.3.1
 fastmcp==4.0.3
 fastmcp-slim==4.0.3
 filelock==4.0.0
-fork-microscope @ git+https://github.com/iPolluxx/fork-microscope-workbench.git@5c0231c3d64bb8f167e41fea776e4ff2e578d048
+# Use this checkout; run pip from integrations/mcp.
+-e ../..
 forking-paths @ git+https://github.com/ericb-goodfire/forking-fast.git@d32fed8d4162a4888291c4b3a38b059727c85a41#subdirectory=forking_paths
 fsspec==2026.7.0
 griffelib==2.3.0
